@@ -24,7 +24,7 @@ type File struct {
 	FileDateModified string `json:"file_date_modified,omitempty"`
 }
 
-func (c *Client) CreateFile(ctx context.Context, asset_id string, file *File) (*File, error) {
+func (c *APIClient) CreateFile(ctx context.Context, asset_id string, file *File) (*File, error) {
 	req, err := c.NewRequest(
 		ctx, "POST", fmt.Sprintf("/API/files/v1/assets/%s/files/", asset_id), file,
 	)
@@ -41,7 +41,7 @@ func (c *Client) CreateFile(ctx context.Context, asset_id string, file *File) (*
 	return &newFile, nil
 }
 
-func (c *Client) TriggerTranscodding(ctx context.Context, asset_id, file_id string) (string, error) {
+func (c *APIClient) TriggerTranscodding(ctx context.Context, asset_id, file_id string) (string, error) {
 	type Body struct {
 		UseStorageTranscodeIgnorePattern bool `json:"use_storage_transcode_ignore_pattern"`
 		Priority                         int  `json:"priority"`
@@ -74,7 +74,7 @@ func (c *Client) TriggerTranscodding(ctx context.Context, asset_id, file_id stri
 	return transcoding.JobID, nil
 }
 
-func (c *Client) CloseFile(ctx context.Context, id, file_id string) error {
+func (c *APIClient) CloseFile(ctx context.Context, id, file_id string) error {
 	type Body struct {
 		Status            string `json:"status"`
 		ProgressProcessed int    `json:"progress_processed"`

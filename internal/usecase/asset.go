@@ -10,23 +10,23 @@ import (
 	"time"
 
 	"github.com/avast/retry-go"
-	"github.com/kgantsov/synconic/internal/config"
-	"github.com/kgantsov/synconic/internal/entity"
-	icnk_client "github.com/kgantsov/synconic/internal/iconik/client"
-	"github.com/kgantsov/synconic/internal/storage"
-	"github.com/kgantsov/synconic/internal/store"
+	"github.com/kgantsov/synconik/internal/config"
+	"github.com/kgantsov/synconik/internal/entity"
+	icnk_client "github.com/kgantsov/synconik/internal/iconik/client"
+	"github.com/kgantsov/synconik/internal/storage"
+	"github.com/kgantsov/synconik/internal/store"
 	"github.com/rs/zerolog/log"
 )
 
 type AssetUseCase struct {
 	config  *config.Config
-	client  *icnk_client.Client
+	client  icnk_client.Client
 	store   store.Store
 	storage *icnk_client.Storage
 }
 
 func NewAssetUseCase(
-	config *config.Config, client *icnk_client.Client, store store.Store, storage *icnk_client.Storage,
+	config *config.Config, client icnk_client.Client, store store.Store, storage *icnk_client.Storage,
 ) *AssetUseCase {
 	return &AssetUseCase{
 		config:  config,

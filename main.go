@@ -10,11 +10,11 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 
-	"github.com/kgantsov/synconic/internal/config"
-	icnk_client "github.com/kgantsov/synconic/internal/iconik/client"
-	"github.com/kgantsov/synconic/internal/scanner"
-	"github.com/kgantsov/synconic/internal/store"
-	"github.com/kgantsov/synconic/internal/uploader"
+	"github.com/kgantsov/synconik/internal/config"
+	icnk_client "github.com/kgantsov/synconik/internal/iconik/client"
+	"github.com/kgantsov/synconik/internal/scanner"
+	"github.com/kgantsov/synconik/internal/store"
+	"github.com/kgantsov/synconik/internal/uploader"
 )
 
 func Run(cmd *cobra.Command, args []string) {

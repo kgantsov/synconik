@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/kgantsov/synconic/internal/config"
-	icnk_client "github.com/kgantsov/synconic/internal/iconik/client"
-	"github.com/kgantsov/synconic/internal/store"
+	"github.com/kgantsov/synconik/internal/config"
+	icnk_client "github.com/kgantsov/synconik/internal/iconik/client"
+	"github.com/kgantsov/synconik/internal/store"
 	"github.com/rs/zerolog/log"
 )
 
@@ -19,11 +19,11 @@ type Uploader struct {
 	Workers    []*Worker
 
 	store  store.Store
-	client *icnk_client.Client
+	client icnk_client.Client
 }
 
 func NewUploader(
-	config *config.Config, store store.Store, client *icnk_client.Client, JobQueue chan Job,
+	config *config.Config, store store.Store, client icnk_client.Client, JobQueue chan Job,
 ) *Uploader {
 	numberOfWorkers := config.Uploader.Workers
 

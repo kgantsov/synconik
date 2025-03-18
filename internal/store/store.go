@@ -1,6 +1,6 @@
 package store
 
-import "github.com/kgantsov/synconic/internal/entity"
+import "github.com/kgantsov/synconik/internal/entity"
 
 type Store interface {
 	// Get returns the value for the given key

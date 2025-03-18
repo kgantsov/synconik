@@ -14,7 +14,7 @@ type FileSet struct {
 	ID           string   `json:"id"`
 }
 
-func (c *Client) CreateFileSet(ctx context.Context, id string, fileSet *FileSet) (*FileSet, error) {
+func (c *APIClient) CreateFileSet(ctx context.Context, id string, fileSet *FileSet) (*FileSet, error) {
 	req, err := c.NewRequest(
 		ctx, "POST", fmt.Sprintf("/API/files/v1/assets/%s/file_sets/", id), fileSet,
 	)

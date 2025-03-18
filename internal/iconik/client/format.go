@@ -14,7 +14,7 @@ type Format struct {
 	StorageMethods []string            `json:"storage_methods"`
 }
 
-func (c *Client) CreateAssetFormat(ctx context.Context, id string, format *Format) (*Format, error) {
+func (c *APIClient) CreateAssetFormat(ctx context.Context, id string, format *Format) (*Format, error) {
 	req, err := c.NewRequest(
 		ctx, "POST", fmt.Sprintf("/API/files/v1/assets/%s/formats/", id), format,
 	)

@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"os"
 
-	icnk_client "github.com/kgantsov/synconic/internal/iconik/client"
+	icnk_client "github.com/kgantsov/synconik/internal/iconik/client"
 )
 
 type S3Storage struct {

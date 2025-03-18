@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/dgraph-io/badger/v4"
-	"github.com/kgantsov/synconic/internal/entity"
+	"github.com/kgantsov/synconik/internal/entity"
 	"github.com/rs/zerolog/log"
 )
 

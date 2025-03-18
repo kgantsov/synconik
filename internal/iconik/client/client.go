@@ -10,15 +10,32 @@ import (
 	"time"
 )
 
-type Client struct {
+type Client interface {
+	GetAsset(ctx context.Context, id string) (*Asset, error)
+	CreateAsset(ctx context.Context, asset *Asset) (*Asset, error)
+
+	CreateCollection(ctx context.Context, collection *Collection) (*Collection, error)
+
+	CreateFileSet(ctx context.Context, id string, fileSet *FileSet) (*FileSet, error)
+
+	CreateFile(ctx context.Context, asset_id string, file *File) (*File, error)
+	TriggerTranscodding(ctx context.Context, asset_id, file_id string) (string, error)
+	CloseFile(ctx context.Context, id, file_id string) error
+
+	CreateAssetFormat(ctx context.Context, id string, format *Format) (*Format, error)
+
+	GetStorage(ctx context.Context, id string) (*Storage, error)
+}
+
+type APIClient struct {
 	BaseURL    string
 	HTTPClient *http.Client
 	AppID      string
 	Token      string
 }
 
-func NewClient(baseURL, AppID, Token string) *Client {
-	return &Client{
+func NewClient(baseURL, AppID, Token string) *APIClient {
+	return &APIClient{
 		BaseURL: baseURL,
 		HTTPClient: &http.Client{
 			Timeout: 30 * time.Second,
@@ -28,7 +45,7 @@ func NewClient(baseURL, AppID, Token string) *Client {
 	}
 }
 
-func (c *Client) NewRequest(
+func (c *APIClient) NewRequest(
 	ctx context.Context, method, url string, body interface{},
 ) (*http.Request, error) {
 	var buf bytes.Buffer
@@ -50,7 +67,7 @@ func (c *Client) NewRequest(
 	return req, nil
 }
 
-func (c *Client) Do(req *http.Request, v interface{}) error {
+func (c *APIClient) Do(req *http.Request, v interface{}) error {
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return err

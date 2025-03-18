@@ -12,7 +12,7 @@ type Collection struct {
 	StorageID string `json:"storage_id,omitempty"`
 }
 
-func (c *Client) CreateCollection(ctx context.Context, collection *Collection) (*Collection, error) {
+func (c *APIClient) CreateCollection(ctx context.Context, collection *Collection) (*Collection, error) {
 	req, err := c.NewRequest(
 		ctx, "POST", fmt.Sprintf("/API/assets/v1/collections/"), collection,
 	)

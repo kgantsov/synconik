@@ -1,7 +1,7 @@
 package storage
 
 import (
-	icnk_client "github.com/kgantsov/synconic/internal/iconik/client"
+	icnk_client "github.com/kgantsov/synconik/internal/iconik/client"
 )
 
 type Storage interface {

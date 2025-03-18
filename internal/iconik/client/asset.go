@@ -18,7 +18,7 @@ type Asset struct {
 	CollectionID string `json:"collection_id,omitempty"`
 }
 
-func (c *Client) GetAsset(ctx context.Context, id string) (*Asset, error) {
+func (c *APIClient) GetAsset(ctx context.Context, id string) (*Asset, error) {
 	req, err := c.NewRequest(ctx, "GET", fmt.Sprintf("/API/assets/v1/assets/%s/", id), nil)
 	if err != nil {
 		return nil, err
@@ -33,7 +33,7 @@ func (c *Client) GetAsset(ctx context.Context, id string) (*Asset, error) {
 	return &asset, nil
 }
 
-func (c *Client) CreateAsset(ctx context.Context, asset *Asset) (*Asset, error) {
+func (c *APIClient) CreateAsset(ctx context.Context, asset *Asset) (*Asset, error) {
 	req, err := c.NewRequest(ctx, "POST", "/API/assets/v1/assets/?assign_to_collection=True", asset)
 	if err != nil {
 		log.Error().Str("service", "iconik_client").Err(err).Msg("Error creating asset request")

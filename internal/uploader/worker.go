@@ -4,10 +4,10 @@ import (
 	"os"
 	"sync"
 
-	"github.com/kgantsov/synconic/internal/config"
-	icnk_client "github.com/kgantsov/synconic/internal/iconik/client"
-	"github.com/kgantsov/synconic/internal/store"
-	"github.com/kgantsov/synconic/internal/usecase"
+	"github.com/kgantsov/synconik/internal/config"
+	icnk_client "github.com/kgantsov/synconik/internal/iconik/client"
+	"github.com/kgantsov/synconik/internal/store"
+	"github.com/kgantsov/synconik/internal/usecase"
 	"github.com/rs/zerolog/log"
 )
 
@@ -32,7 +32,7 @@ type Worker struct {
 	quit chan bool
 
 	store  store.Store
-	client *icnk_client.Client
+	client icnk_client.Client
 
 	assetUseCase *usecase.AssetUseCase
 }
@@ -40,7 +40,7 @@ type Worker struct {
 func NewWorker(
 	config *config.Config,
 	store store.Store,
-	client *icnk_client.Client,
+	client icnk_client.Client,
 	name string,
 	workerPool chan chan Job,
 	storage *icnk_client.Storage,

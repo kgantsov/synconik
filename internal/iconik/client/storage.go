@@ -14,7 +14,7 @@ type Storage struct {
 	Settings map[string]interface{} `json:"settings"`
 }
 
-func (c *Client) GetStorage(ctx context.Context, id string) (*Storage, error) {
+func (c *APIClient) GetStorage(ctx context.Context, id string) (*Storage, error) {
 	req, err := c.NewRequest(ctx, "GET", fmt.Sprintf("/API/files/v1/storages/%s/", id), nil)
 	if err != nil {
 		return nil, err

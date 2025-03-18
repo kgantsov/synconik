@@ -5,21 +5,21 @@ import (
 	"os"
 	"strings"
 
-	"github.com/kgantsov/synconic/internal/config"
-	"github.com/kgantsov/synconic/internal/entity"
-	icnk_client "github.com/kgantsov/synconic/internal/iconik/client"
-	"github.com/kgantsov/synconic/internal/store"
+	"github.com/kgantsov/synconik/internal/config"
+	"github.com/kgantsov/synconik/internal/entity"
+	icnk_client "github.com/kgantsov/synconik/internal/iconik/client"
+	"github.com/kgantsov/synconik/internal/store"
 	"github.com/rs/zerolog/log"
 )
 
 type CollectionUseCase struct {
 	config *config.Config
-	client *icnk_client.Client
+	client icnk_client.Client
 	store  store.Store
 }
 
 func NewCollectionUseCase(
-	config *config.Config, client *icnk_client.Client, store store.Store,
+	config *config.Config, client icnk_client.Client, store store.Store,
 ) *CollectionUseCase {
 	return &CollectionUseCase{
 		config: config,

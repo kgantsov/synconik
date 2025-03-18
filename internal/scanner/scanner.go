@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kgantsov/synconic/internal/config"
-	icnk_client "github.com/kgantsov/synconic/internal/iconik/client"
-	"github.com/kgantsov/synconic/internal/store"
-	"github.com/kgantsov/synconic/internal/uploader"
-	"github.com/kgantsov/synconic/internal/usecase"
+	"github.com/kgantsov/synconik/internal/config"
+	icnk_client "github.com/kgantsov/synconik/internal/iconik/client"
+	"github.com/kgantsov/synconik/internal/store"
+	"github.com/kgantsov/synconik/internal/uploader"
+	"github.com/kgantsov/synconik/internal/usecase"
 	"github.com/rs/zerolog/log"
 )
 
@@ -21,7 +21,7 @@ type Scanner struct {
 	UploadJobQueue chan uploader.Job
 
 	store             store.Store
-	client            *icnk_client.Client
+	client            icnk_client.Client
 	collectionUseCase *usecase.CollectionUseCase
 
 	wg   *sync.WaitGroup
@@ -31,7 +31,7 @@ type Scanner struct {
 func NewScanner(
 	config *config.Config,
 	store store.Store,
-	client *icnk_client.Client,
+	client icnk_client.Client,
 	uploadJobQueue chan uploader.Job,
 ) (*Scanner, error) {
 	if config.Scanner.Dir == "" {
