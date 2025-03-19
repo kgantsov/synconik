@@ -1,6 +1,6 @@
-# Synconic
+# synconik
 
-Synconic is a Go-based file synchronization tool designed to monitor and upload files to Iconik, a media management platform. It provides efficient file scanning and uploading capabilities with persistent storage using BadgerDB.
+synconik is a Go-based file synchronization tool designed to monitor and upload files to Iconik, a media management platform. It provides efficient file scanning and uploading capabilities with persistent storage using BadgerDB.
 
 ## Features
 
@@ -20,8 +20,8 @@ Synconic is a Go-based file synchronization tool designed to monitor and upload 
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/kgantsov/synconic.git
-cd synconic
+git clone https://github.com/kgantsov/synconik.git
+cd synconik
 ```
 
 2. Install dependencies:
@@ -59,7 +59,7 @@ log:
 
 Run the application:
 ```bash
-./synconic
+./synconik
 ```
 
 The application will:
