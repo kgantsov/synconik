@@ -1,9 +1,9 @@
 package storage
 
 import (
-	icnk_client "github.com/kgantsov/synconik/internal/iconik/client"
+	"github.com/kgantsov/synconik/internal/entity"
 )
 
 type Storage interface {
-	Upload(filePath string, file *icnk_client.File) error
+	Upload(filePath string, file *entity.UploadFile) error
 }

@@ -187,7 +187,7 @@ func (uc *AssetUseCase) UploadAsset(path string, info os.FileInfo) (*entity.File
 
 	err = retry.Do(
 		func() error {
-			err = iconikStorage.Upload(absolutePath, file)
+			err = uc.client.Upload(ctx, iconikStorage, absolutePath, file)
 			if err != nil {
 				return err
 			}

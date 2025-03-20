@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"os"
 
-	icnk_client "github.com/kgantsov/synconik/internal/iconik/client"
+	"github.com/kgantsov/synconik/internal/entity"
 )
 
 type GCSStorage struct {
@@ -43,7 +43,7 @@ func (s *GCSStorage) startUpload(upload_url string) (string, error) {
 	return uploadID, nil
 }
 
-func (s *GCSStorage) Upload(filePath string, file *icnk_client.File) error {
+func (s *GCSStorage) Upload(filePath string, file *entity.UploadFile) error {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("unable to open file: %v", err)

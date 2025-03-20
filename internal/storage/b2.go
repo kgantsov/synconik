@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"os"
 
-	icnk_client "github.com/kgantsov/synconik/internal/iconik/client"
+	"github.com/kgantsov/synconik/internal/entity"
 )
 
 type B2Storage struct {
@@ -19,7 +19,7 @@ func NewB2Storage(httpClient *http.Client) *B2Storage {
 	}
 }
 
-func (s *B2Storage) Upload(filePath string, file *icnk_client.File) error {
+func (s *B2Storage) Upload(filePath string, file *entity.UploadFile) error {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)

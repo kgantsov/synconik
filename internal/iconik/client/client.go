@@ -8,6 +8,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"time"
+
+	"github.com/kgantsov/synconik/internal/storage"
 )
 
 type Client interface {
@@ -25,6 +27,7 @@ type Client interface {
 	CreateAssetFormat(ctx context.Context, id string, format *Format) (*Format, error)
 
 	GetStorage(ctx context.Context, id string) (*Storage, error)
+	Upload(ctx context.Context, storage storage.Storage, filePath string, file *File) error
 }
 
 type APIClient struct {

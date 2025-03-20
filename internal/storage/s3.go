@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"os"
 
-	icnk_client "github.com/kgantsov/synconik/internal/iconik/client"
+	"github.com/kgantsov/synconik/internal/entity"
 )
 
 type S3Storage struct {
@@ -18,7 +18,7 @@ func NewS3Storage(httpClient *http.Client) *S3Storage {
 	}
 }
 
-func (s *S3Storage) Upload(filePath string, file *icnk_client.File) error {
+func (s *S3Storage) Upload(filePath string, file *entity.UploadFile) error {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)

@@ -3,6 +3,9 @@ package client
 import (
 	"context"
 	"fmt"
+
+	"github.com/kgantsov/synconik/internal/entity"
+	"github.com/kgantsov/synconik/internal/storage"
 )
 
 type Storage struct {
@@ -27,4 +30,22 @@ func (c *APIClient) GetStorage(ctx context.Context, id string) (*Storage, error)
 	}
 
 	return &storage, nil
+}
+
+func (c *APIClient) Upload(ctx context.Context, storage storage.Storage, filePath string, file *File) error {
+	return storage.Upload(filePath, &entity.UploadFile{
+		Name:              file.Name,
+		OriginalName:      file.OriginalName,
+		DirectoryPath:     file.DirectoryPath,
+		Size:              file.Size,
+		Type:              file.Type,
+		StorageID:         file.StorageID,
+		FileSetID:         file.FileSetID,
+		FormatID:          file.FormatID,
+		UploadURL:         file.UploadURL,
+		UploadCredentials: file.UploadCredentials,
+		ID:                file.ID,
+		FileDateCreated:   file.FileDateCreated,
+		FileDateModified:  file.FileDateModified,
+	})
 }
