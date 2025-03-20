@@ -61,9 +61,6 @@ func (uc *AssetUseCase) UploadIfNotExists(path string, info os.FileInfo) error {
 }
 
 func (uc *AssetUseCase) UploadAsset(path string, info os.FileInfo) (*entity.File, error) {
-	// storageID := "ffd58368-d75d-11e8-8602-0a580a302c48" // GCS
-	// storageID := "9d278340-2b4c-11ef-bae4-4ed92a74f865" // B2
-
 	var netTransport = &http.Transport{
 		Dial: (&net.Dialer{
 			Timeout: 5 * time.Second,
