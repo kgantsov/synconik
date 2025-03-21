@@ -1,0 +1,61 @@
+kind: pipeline
+name: default
+
+steps:
+- name: test
+  image: golang:1.22.2
+  volumes:
+  - name: deps
+    path: /go
+  commands:
+  - go test ./... -cover -coverprofile coverage.out
+  when:
+    event:
+      exclude:
+      - tag
+
+- name: codecov
+  image: robertstettner/drone-codecov
+  settings:
+    token:
+      from_secret: CODECOV_TOKEN
+  when:
+    event:
+      exclude:
+      - tag
+
+- name: build
+  image: golang:1.22.2
+  volumes:
+  - name: deps
+    path: /go
+  commands:
+    - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o dist/synconik main.go
+    - tar -czf dist/synconik-${DRONE_TAG##v}-linux-amd64.tar.gz dist/synconik
+    - CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o dist/synconik main.go
+    - tar -czf dist/synconik-${DRONE_TAG##v}-linux-arm64.tar.gz dist/synconik
+
+    - rm -f dist/synconik
+  when:
+    event:
+      - tag
+
+
+- name: publish
+  image: plugins/github-release
+  volumes:
+  - name: deps
+    path: /go
+  settings:
+    api_key:
+      from_secret: github_token
+    files: dist/*
+  when:
+    event:
+      - tag
+
+volumes:
+- name: ui
+  temp: {}
+- name: deps
+  temp: {}
