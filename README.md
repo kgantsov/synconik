@@ -1,4 +1,4 @@
-# synconik
+# synconik [![codecov](https://codecov.io/gh/kgantsov/synconik/graph/badge.svg?token=FP40VBWNOW)](https://codecov.io/gh/kgantsov/synconik)
 
 synconik is a Go-based file synchronization tool designed to monitor and upload files to Iconik, a media management platform. It provides efficient file scanning and uploading capabilities with persistent storage using BadgerDB.
 
