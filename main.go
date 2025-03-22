@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -27,7 +28,11 @@ func Run(cmd *cobra.Command, args []string) {
 
 	config.ConfigureLogger()
 
-	client := icnk_client.NewClient(config.Iconik.URL, config.Iconik.AppID, config.Iconik.Token)
+	httpClient := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	client := icnk_client.NewClient(httpClient, config.Iconik.URL, config.Iconik.AppID, config.Iconik.Token)
 
 	badgerStore, err := store.NewBadgerStore(config.Store.DataDir)
 

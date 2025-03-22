@@ -7,13 +7,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"time"
 
 	"github.com/kgantsov/synconik/internal/storage"
 )
 
 type Client interface {
-	GetAsset(ctx context.Context, id string) (*Asset, error)
 	CreateAsset(ctx context.Context, asset *Asset) (*Asset, error)
 
 	CreateCollection(ctx context.Context, collection *Collection) (*Collection, error)
@@ -37,14 +35,12 @@ type APIClient struct {
 	Token      string
 }
 
-func NewClient(baseURL, AppID, Token string) *APIClient {
+func NewClient(httpClient *http.Client, baseURL, AppID, Token string) *APIClient {
 	return &APIClient{
-		BaseURL: baseURL,
-		HTTPClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-		AppID: AppID,
-		Token: Token,
+		BaseURL:    baseURL,
+		HTTPClient: httpClient,
+		AppID:      AppID,
+		Token:      Token,
 	}
 }
 

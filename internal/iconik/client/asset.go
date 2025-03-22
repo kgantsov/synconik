@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/rs/zerolog/log"
 )
@@ -16,21 +15,6 @@ type Asset struct {
 	Title        string `json:"title"`
 	Type         string `json:"type"`
 	CollectionID string `json:"collection_id,omitempty"`
-}
-
-func (c *APIClient) GetAsset(ctx context.Context, id string) (*Asset, error) {
-	req, err := c.NewRequest(ctx, "GET", fmt.Sprintf("/API/assets/v1/assets/%s/", id), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var asset Asset
-	err = c.Do(req, &asset)
-	if err != nil {
-		return nil, err
-	}
-
-	return &asset, nil
 }
 
 func (c *APIClient) CreateAsset(ctx context.Context, asset *Asset) (*Asset, error) {

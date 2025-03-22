@@ -12,15 +12,6 @@ type MockClient struct {
 	mock.Mock
 }
 
-// GetAsset mocks the GetAsset method
-func (m *MockClient) GetAsset(ctx context.Context, id string) (*Asset, error) {
-	args := m.Called(ctx, id)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*Asset), args.Error(1)
-}
-
 // CreateAsset mocks the CreateAsset method
 func (m *MockClient) CreateAsset(ctx context.Context, asset *Asset) (*Asset, error) {
 	args := m.Called(ctx, asset)
