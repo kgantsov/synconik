@@ -106,7 +106,7 @@ func TestUploadAsset(t *testing.T) {
 		"D025605F-CF64-4EE5-9F48-E6DD5D363473",
 	).Return(nil)
 	client.On(
-		"TriggerTranscodding",
+		"TriggerTranscoding",
 		mock.Anything,
 		"47265105-BE2B-4C3F-8997-66BAB2893D0D",
 		"D025605F-CF64-4EE5-9F48-E6DD5D363473",
@@ -210,7 +210,7 @@ func TestUploadIfNotExists(t *testing.T) {
 		"D025605F-CF64-4EE5-9F48-E6DD5D363473",
 	).Return(nil)
 	client.On(
-		"TriggerTranscodding",
+		"TriggerTranscoding",
 		mock.Anything,
 		"47265105-BE2B-4C3F-8997-66BAB2893D0D",
 		"D025605F-CF64-4EE5-9F48-E6DD5D363473",

@@ -209,7 +209,7 @@ func (uc *AssetUseCase) UploadAsset(path string, info os.FileInfo) (*entity.File
 		return nil, err
 	}
 
-	_, err = uc.client.TriggerTranscodding(ctx, asset.ID, file.ID)
+	_, err = uc.client.TriggerTranscoding(ctx, asset.ID, file.ID)
 	if err != nil {
 		return nil, err
 	}

@@ -48,8 +48,8 @@ func (m *MockClient) CreateFile(ctx context.Context, asset_id string, file *File
 	return args.Get(0).(*File), args.Error(1)
 }
 
-// TriggerTranscodding mocks the TriggerTranscodding method
-func (m *MockClient) TriggerTranscodding(ctx context.Context, asset_id, file_id string) (string, error) {
+// TriggerTranscoding mocks the TriggerTranscoding method
+func (m *MockClient) TriggerTranscoding(ctx context.Context, asset_id, file_id string) (string, error) {
 	args := m.Called(ctx, asset_id, file_id)
 	return args.String(0), args.Error(1)
 }

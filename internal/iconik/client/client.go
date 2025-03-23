@@ -19,7 +19,7 @@ type Client interface {
 	CreateFileSet(ctx context.Context, id string, fileSet *FileSet) (*FileSet, error)
 
 	CreateFile(ctx context.Context, asset_id string, file *File) (*File, error)
-	TriggerTranscodding(ctx context.Context, asset_id, file_id string) (string, error)
+	TriggerTranscoding(ctx context.Context, asset_id, file_id string) (string, error)
 	CloseFile(ctx context.Context, id, file_id string) error
 
 	CreateAssetFormat(ctx context.Context, id string, format *Format) (*Format, error)

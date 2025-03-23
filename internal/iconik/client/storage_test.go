@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/kgantsov/synconik/internal/config"
+	"github.com/kgantsov/synconik/internal/entity"
+	"github.com/kgantsov/synconik/internal/storage"
 	"github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/assert"
 )
@@ -64,4 +66,50 @@ func TestGetStorage(t *testing.T) {
 		"bucket": "test-bucket",
 		"region": "us-east-1",
 	}, storage.Settings)
+}
+
+func TestUpload(t *testing.T) {
+	cfg := &config.Config{
+		Iconik: config.Iconik{
+			URL:   "https://app.iconik.io",
+			AppID: "123e4567-e89b-12d3-a456-426614174000",
+			Token: "abcdef0123456789abcdef0123456789",
+		},
+	}
+
+	client := NewClient(&http.Client{}, cfg.Iconik.URL, cfg.Iconik.AppID, cfg.Iconik.Token)
+
+	mockStorage := storage.NewMockStorage()
+	mockStorage.On("Upload", "test.mp4", &entity.UploadFile{
+		Name:              "test.mp4",
+		OriginalName:      "test.mp4",
+		DirectoryPath:     "/test/path",
+		Size:              1024,
+		Type:              "video/mp4",
+		StorageID:         "storage-123",
+		FileSetID:         "file-set-123",
+		FormatID:          "format-123",
+		UploadURL:         "https://storage.test/upload",
+		UploadCredentials: map[string]string{"key": "value"},
+		ID:                "6ba7b811-9dad-11d1-80b4-00c04fd430c8",
+		FileDateCreated:   "2023-01-01T00:00:00Z",
+		FileDateModified:  "2023-01-01T00:00:00Z",
+	}).Return(nil)
+
+	err := client.Upload(context.Background(), mockStorage, "test.mp4", &File{
+		Name:              "test.mp4",
+		OriginalName:      "test.mp4",
+		DirectoryPath:     "/test/path",
+		Size:              1024,
+		Type:              "video/mp4",
+		StorageID:         "storage-123",
+		FileSetID:         "file-set-123",
+		FormatID:          "format-123",
+		UploadURL:         "https://storage.test/upload",
+		UploadCredentials: map[string]string{"key": "value"},
+		ID:                "6ba7b811-9dad-11d1-80b4-00c04fd430c8",
+		FileDateCreated:   "2023-01-01T00:00:00Z",
+		FileDateModified:  "2023-01-01T00:00:00Z",
+	})
+	assert.NoError(t, err)
 }

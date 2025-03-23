@@ -41,7 +41,7 @@ func (c *APIClient) CreateFile(ctx context.Context, asset_id string, file *File)
 	return &newFile, nil
 }
 
-func (c *APIClient) TriggerTranscodding(ctx context.Context, asset_id, file_id string) (string, error) {
+func (c *APIClient) TriggerTranscoding(ctx context.Context, asset_id, file_id string) (string, error) {
 	type Body struct {
 		UseStorageTranscodeIgnorePattern bool `json:"use_storage_transcode_ignore_pattern"`
 		Priority                         int  `json:"priority"`
