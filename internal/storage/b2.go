@@ -42,6 +42,10 @@ func (s *B2Storage) Upload(filePath string, file *entity.UploadFile) error {
 
 	fullFileName := file.DirectoryPath + "/" + file.Name
 
+	if file.DirectoryPath == "" {
+		fullFileName = file.Name
+	}
+
 	// Set headers
 	req.Header.Set("Authorization", file.UploadCredentials["authorizationToken"])
 	req.Header.Set("X-Bz-File-Name", fullFileName)
