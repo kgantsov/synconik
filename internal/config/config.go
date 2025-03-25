@@ -77,7 +77,24 @@ func InitCobraCommand(runFunc func(cmd *cobra.Command, args []string)) *cobra.Co
 	var rootCmd = &cobra.Command{
 		Use:   "doq",
 		Short: "DOQ is a distributed queue",
-		Run:   runFunc,
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			requiredParams := []string{
+				"scanner.dir",
+				"iconik.app_id",
+				"iconik.token",
+				"iconik.storage_id",
+				"store.data_dir",
+			}
+
+			for _, param := range requiredParams {
+				if !viper.IsSet(param) || viper.GetString(param) == "" {
+					return fmt.Errorf("missing required parameter: %s", param)
+				}
+			}
+
+			return nil
+		},
+		Run: runFunc,
 	}
 
 	// Command-line flags
@@ -85,21 +102,16 @@ func InitCobraCommand(runFunc func(cmd *cobra.Command, args []string)) *cobra.Co
 	rootCmd.Flags().String("logging.level", "info", "Log level")
 
 	rootCmd.Flags().String("scanner.dir", "", "Directory to scan for files")
-	rootCmd.MarkFlagRequired("scanner.dir")
 	rootCmd.Flags().Int32("scanner.interval", 10, "Interval in seconds to scan the directory")
 
 	rootCmd.Flags().Int("uploader.workers", 5, "Number of workers to upload files")
 
 	rootCmd.Flags().String("iconik.url", "https://app.iconik.io", "Iconik URL")
 	rootCmd.Flags().String("iconik.app_id", "", "Iconik app ID")
-	rootCmd.MarkFlagRequired("iconik.app_id")
 	rootCmd.Flags().String("iconik.token", "", "Iconik token")
-	rootCmd.MarkFlagRequired("iconik.token")
 	rootCmd.Flags().String("iconik.storage_id", "", "Iconik storage ID")
-	rootCmd.MarkFlagRequired("iconik.storage_id")
 
 	rootCmd.Flags().String("store.data_dir", "db", "Data directory")
-	rootCmd.MarkFlagRequired("store.data_dir")
 
 	// Bind CLI flags to Viper settings
 	viper.BindPFlag("logging.level", rootCmd.Flags().Lookup("logging.level"))
