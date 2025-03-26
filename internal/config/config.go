@@ -53,6 +53,11 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("unable to decode into struct, %v", err)
 	}
 
+	// make sure that config.Scanner.Dir has a trailing slash
+	if config.Scanner.Dir[len(config.Scanner.Dir)-1] != '/' {
+		config.Scanner.Dir = config.Scanner.Dir + "/"
+	}
+
 	return &config, nil
 }
 
