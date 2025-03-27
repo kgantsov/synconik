@@ -80,8 +80,8 @@ func InitCobraCommand(runFunc func(cmd *cobra.Command, args []string)) *cobra.Co
 	}
 
 	var rootCmd = &cobra.Command{
-		Use:   "doq",
-		Short: "DOQ is a distributed queue",
+		Use:   "synconic",
+		Short: "synconic",
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			requiredParams := []string{
 				"scanner.dir",
