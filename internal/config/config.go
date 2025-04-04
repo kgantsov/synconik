@@ -76,7 +76,7 @@ func InitCobraCommand(runFunc func(cmd *cobra.Command, args []string)) *cobra.Co
 
 	// Read the config file if found
 	if err := viper.ReadInConfig(); err == nil {
-		// log.Warn().Msgf("Using config file: %s", viper.ConfigFileUsed())
+		log.Info().Msgf("Using config file: %s", viper.ConfigFileUsed())
 	}
 
 	var rootCmd = &cobra.Command{
