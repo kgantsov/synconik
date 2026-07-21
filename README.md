@@ -133,12 +133,3 @@ go test ./internal/storage/ -run TestName -v      # run a single test
 ├── config.yaml          # Runtime configuration
 └── db/                  # BadgerDB data directory
 ```
-
-## License
-
-[Add your license information here]
-
-## Contributing
-
-[Add contribution guidelines here]
-```
