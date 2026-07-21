@@ -24,10 +24,11 @@ type Job struct {
 type Worker struct {
 	Config *config.Config
 
-	Name       string
-	WorkerPool chan chan Job
-	JobChannel chan Job
-	storage    *icnk_client.Storage
+	Name         string
+	WorkerPool   chan chan Job
+	JobChannel   chan Job
+	storage      *icnk_client.Storage
+	localStorage *icnk_client.Storage
 
 	quit chan bool
 
@@ -44,19 +45,21 @@ func NewWorker(
 	name string,
 	workerPool chan chan Job,
 	storage *icnk_client.Storage,
+	localStorage *icnk_client.Storage,
 ) *Worker {
 	return &Worker{
-		Config:     config,
-		Name:       name,
-		WorkerPool: workerPool,
-		JobChannel: make(chan Job),
-		storage:    storage,
-		quit:       make(chan bool),
+		Config:       config,
+		Name:         name,
+		WorkerPool:   workerPool,
+		JobChannel:   make(chan Job),
+		storage:      storage,
+		localStorage: localStorage,
+		quit:         make(chan bool),
 
 		store:  store,
 		client: client,
 
-		assetUseCase: usecase.NewAssetUseCase(config, client, store, storage),
+		assetUseCase: usecase.NewAssetUseCase(config, client, store, storage, localStorage),
 	}
 }
 

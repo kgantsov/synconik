@@ -41,7 +41,14 @@ func TestUploadAsset(t *testing.T) {
 		Purpose: "FILES",
 		Status:  "ACTIVE",
 	}
-	assetUseCase := NewAssetUseCase(cfg, client, store, storage)
+	localStorage := &icnk_client.Storage{
+		ID:      "8C1F2A3B-LOCAL-STORAGE-ID",
+		Name:    "local",
+		Method:  "FILE",
+		Purpose: "FILES",
+		Status:  "ACTIVE",
+	}
+	assetUseCase := NewAssetUseCase(cfg, client, store, storage, localStorage)
 
 	client.On("CreateAsset", mock.Anything, &icnk_client.Asset{
 		Title:  imageFileInfo.Name(),
@@ -55,7 +62,7 @@ func TestUploadAsset(t *testing.T) {
 		Name:           "ORIGINAL",
 		Status:         "ACTIVE",
 		Metadata:       []map[string]string{{"internet_media_type": "image/jpeg"}},
-		StorageMethods: []string{"S3"},
+		StorageMethods: []string{"S3", "FILE"},
 	}).Return(&icnk_client.Format{
 		ID: "EDEF4933-4CB5-4FFE-B55F-C00549AC164B",
 	}, nil)
@@ -111,6 +118,39 @@ func TestUploadAsset(t *testing.T) {
 		"47265105-BE2B-4C3F-8997-66BAB2893D0D",
 		"D025605F-CF64-4EE5-9F48-E6DD5D363473",
 	).Return("C2BC2D18-FBF5-4D89-92B3-35E586ABCCD8", nil)
+
+	// Local ("FILE" method) storage registration: a second file_set + file with
+	// no byte upload, closed to mark the file present locally.
+	client.On("CreateFileSet", mock.Anything, "47265105-BE2B-4C3F-8997-66BAB2893D0D", &icnk_client.FileSet{
+		FormatID:     "EDEF4933-4CB5-4FFE-B55F-C00549AC164B",
+		StorageID:    "8C1F2A3B-LOCAL-STORAGE-ID",
+		BaseDir:      dir + "/",
+		Name:         imageFileInfo.Name(),
+		ComponentIds: []string{},
+	}).Return(&icnk_client.FileSet{
+		ID: "LOCALFS-1234",
+	}, nil)
+
+	client.On("CreateFile", mock.Anything, "47265105-BE2B-4C3F-8997-66BAB2893D0D", &icnk_client.File{
+		OriginalName:     imageFileInfo.Name(),
+		DirectoryPath:    dir + "/",
+		Size:             imageFileInfo.Size(),
+		Type:             "FILE",
+		StorageID:        "8C1F2A3B-LOCAL-STORAGE-ID",
+		FormatID:         "EDEF4933-4CB5-4FFE-B55F-C00549AC164B",
+		FileSetID:        "LOCALFS-1234",
+		FileDateCreated:  imageFileInfo.ModTime().Format(time.RFC3339),
+		FileDateModified: imageFileInfo.ModTime().Format(time.RFC3339),
+	}).Return(&icnk_client.File{
+		ID: "LOCALFILE-5678",
+	}, nil)
+
+	client.On(
+		"CloseFile",
+		mock.Anything,
+		"47265105-BE2B-4C3F-8997-66BAB2893D0D",
+		"LOCALFILE-5678",
+	).Return(nil)
 
 	file, err := assetUseCase.UploadAsset(imagePath, imageFileInfo)
 	assert.NoError(t, err)
@@ -145,7 +185,14 @@ func TestUploadIfNotExists(t *testing.T) {
 		Purpose: "FILES",
 		Status:  "ACTIVE",
 	}
-	assetUseCase := NewAssetUseCase(cfg, client, store, storage)
+	localStorage := &icnk_client.Storage{
+		ID:      "8C1F2A3B-LOCAL-STORAGE-ID",
+		Name:    "local",
+		Method:  "FILE",
+		Purpose: "FILES",
+		Status:  "ACTIVE",
+	}
+	assetUseCase := NewAssetUseCase(cfg, client, store, storage, localStorage)
 
 	client.On("CreateAsset", mock.Anything, &icnk_client.Asset{
 		Title:  imageFileInfo.Name(),
@@ -159,7 +206,7 @@ func TestUploadIfNotExists(t *testing.T) {
 		Name:           "ORIGINAL",
 		Status:         "ACTIVE",
 		Metadata:       []map[string]string{{"internet_media_type": "image/jpeg"}},
-		StorageMethods: []string{"S3"},
+		StorageMethods: []string{"S3", "FILE"},
 	}).Return(&icnk_client.Format{
 		ID: "EDEF4933-4CB5-4FFE-B55F-C00549AC164B",
 	}, nil)
@@ -215,6 +262,39 @@ func TestUploadIfNotExists(t *testing.T) {
 		"47265105-BE2B-4C3F-8997-66BAB2893D0D",
 		"D025605F-CF64-4EE5-9F48-E6DD5D363473",
 	).Return("C2BC2D18-FBF5-4D89-92B3-35E586ABCCD8", nil)
+
+	// Local ("FILE" method) storage registration: a second file_set + file with
+	// no byte upload, closed to mark the file present locally.
+	client.On("CreateFileSet", mock.Anything, "47265105-BE2B-4C3F-8997-66BAB2893D0D", &icnk_client.FileSet{
+		FormatID:     "EDEF4933-4CB5-4FFE-B55F-C00549AC164B",
+		StorageID:    "8C1F2A3B-LOCAL-STORAGE-ID",
+		BaseDir:      dir + "/",
+		Name:         imageFileInfo.Name(),
+		ComponentIds: []string{},
+	}).Return(&icnk_client.FileSet{
+		ID: "LOCALFS-1234",
+	}, nil)
+
+	client.On("CreateFile", mock.Anything, "47265105-BE2B-4C3F-8997-66BAB2893D0D", &icnk_client.File{
+		OriginalName:     imageFileInfo.Name(),
+		DirectoryPath:    dir + "/",
+		Size:             imageFileInfo.Size(),
+		Type:             "FILE",
+		StorageID:        "8C1F2A3B-LOCAL-STORAGE-ID",
+		FormatID:         "EDEF4933-4CB5-4FFE-B55F-C00549AC164B",
+		FileSetID:        "LOCALFS-1234",
+		FileDateCreated:  imageFileInfo.ModTime().Format(time.RFC3339),
+		FileDateModified: imageFileInfo.ModTime().Format(time.RFC3339),
+	}).Return(&icnk_client.File{
+		ID: "LOCALFILE-5678",
+	}, nil)
+
+	client.On(
+		"CloseFile",
+		mock.Anything,
+		"47265105-BE2B-4C3F-8997-66BAB2893D0D",
+		"LOCALFILE-5678",
+	).Return(nil)
 
 	err = assetUseCase.UploadIfNotExists(imagePath, imageFileInfo)
 	assert.NoError(t, err)

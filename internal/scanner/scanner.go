@@ -23,6 +23,7 @@ type Scanner struct {
 	store             store.Store
 	client            icnk_client.Client
 	collectionUseCase *usecase.CollectionUseCase
+	reconcileUseCase  *usecase.ReconcileUseCase
 
 	wg   *sync.WaitGroup
 	done chan bool
@@ -48,6 +49,7 @@ func NewScanner(
 		store:  store,
 
 		collectionUseCase: usecase.NewCollectionUseCase(config, client, store),
+		reconcileUseCase:  usecase.NewReconcileUseCase(config, client, store),
 
 		UploadJobQueue: uploadJobQueue,
 
@@ -148,4 +150,8 @@ func (s *Scanner) Scan() {
 
 	log.Info().Str("service", "scanner").Msgf("Number of files in the folder: %d", fileCount)
 	log.Info().Str("service", "scanner").Msgf("Number of directories in the folder: %d", dirCount)
+
+	// After discovering new files, reconcile the store against disk to remove the
+	// local file_set for any files that were deleted since the last scan.
+	s.reconcileUseCase.ReconcileDeletions()
 }

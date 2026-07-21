@@ -19,20 +19,26 @@ import (
 )
 
 type AssetUseCase struct {
-	config  *config.Config
-	client  icnk_client.Client
-	store   store.Store
-	storage *icnk_client.Storage
+	config       *config.Config
+	client       icnk_client.Client
+	store        store.Store
+	storage      *icnk_client.Storage
+	localStorage *icnk_client.Storage
 }
 
 func NewAssetUseCase(
-	config *config.Config, client icnk_client.Client, store store.Store, storage *icnk_client.Storage,
+	config *config.Config,
+	client icnk_client.Client,
+	store store.Store,
+	storage *icnk_client.Storage,
+	localStorage *icnk_client.Storage,
 ) *AssetUseCase {
 	return &AssetUseCase{
-		config:  config,
-		client:  client,
-		store:   store,
-		storage: storage,
+		config:       config,
+		client:       client,
+		store:        store,
+		storage:      storage,
+		localStorage: localStorage,
 	}
 }
 
@@ -131,7 +137,7 @@ func (uc *AssetUseCase) UploadAsset(path string, info os.FileInfo) (*entity.File
 			Name:           "ORIGINAL",
 			Status:         "ACTIVE",
 			Metadata:       []map[string]string{{"internet_media_type": "image/jpeg"}},
-			StorageMethods: []string{uc.storage.Method},
+			StorageMethods: []string{uc.storage.Method, uc.localStorage.Method},
 		},
 	)
 
@@ -214,5 +220,64 @@ func (uc *AssetUseCase) UploadAsset(path string, info os.FileInfo) (*entity.File
 		return nil, err
 	}
 
+	// Register the same asset on the local ("FILE" method) storage as a second
+	// file_set + file. The bytes already live on disk, so there is no upload —
+	// the file is created and immediately closed to mark it present locally.
+	err = uc.registerLocalFileSet(ctx, asset.ID, format.ID, dirPath, info, f)
+	if err != nil {
+		log.Error().Err(err).Str("service", "asset_usecase").Msgf("Error registering local file: %s", path)
+		return nil, err
+	}
+
 	return f, nil
+}
+
+// registerLocalFileSet creates a file_set + file on the local ("FILE" method)
+// Iconik storage for an already-existing asset/format, without uploading any
+// bytes, and records the resulting IDs on f.
+func (uc *AssetUseCase) registerLocalFileSet(
+	ctx context.Context, assetID, formatID, dirPath string, info os.FileInfo, f *entity.File,
+) error {
+	fileSet, err := uc.client.CreateFileSet(
+		ctx,
+		assetID, &icnk_client.FileSet{
+			FormatID:     formatID,
+			StorageID:    uc.localStorage.ID,
+			BaseDir:      dirPath,
+			Name:         info.Name(),
+			ComponentIds: []string{},
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	file, err := uc.client.CreateFile(
+		ctx,
+		assetID,
+		&icnk_client.File{
+			StorageID:        uc.localStorage.ID,
+			FormatID:         formatID,
+			FileSetID:        fileSet.ID,
+			Type:             f.Type,
+			DirectoryPath:    dirPath,
+			OriginalName:     info.Name(),
+			Size:             info.Size(),
+			FileDateCreated:  info.ModTime().Format(time.RFC3339),
+			FileDateModified: info.ModTime().Format(time.RFC3339),
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	if err := uc.client.CloseFile(ctx, assetID, file.ID); err != nil {
+		return err
+	}
+
+	f.LocalStorageID = uc.localStorage.ID
+	f.LocalFileSetID = fileSet.ID
+	f.LocalFileID = file.ID
+
+	return nil
 }

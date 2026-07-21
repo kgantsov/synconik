@@ -17,14 +17,21 @@ type Client interface {
 	CreateCollection(ctx context.Context, collection *Collection) (*Collection, error)
 
 	CreateFileSet(ctx context.Context, id string, fileSet *FileSet) (*FileSet, error)
+	DeleteFileSet(ctx context.Context, asset_id, file_set_id string) error
 
 	CreateFile(ctx context.Context, asset_id string, file *File) (*File, error)
+	GetAssetFiles(ctx context.Context, asset_id string, generateSignedURL bool) ([]File, error)
 	TriggerTranscoding(ctx context.Context, asset_id, file_id string) (string, error)
 	CloseFile(ctx context.Context, id, file_id string) error
 
 	CreateAssetFormat(ctx context.Context, id string, format *Format) (*Format, error)
 
 	GetStorage(ctx context.Context, id string) (*Storage, error)
+	GetStorageTransfersTo(ctx context.Context, storage_id string) ([]Transfer, error)
+	AckStorageTransferTo(ctx context.Context, storage_id, transfer_id string, success bool) error
+
+	GetStorageDeletions(ctx context.Context, storage_id string) ([]FileDeletion, error)
+	DeleteStorageDeletion(ctx context.Context, storage_id, deletion_id string) error
 	Upload(ctx context.Context, storage storage.Storage, filePath string, file *File) error
 }
 

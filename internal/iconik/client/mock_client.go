@@ -39,6 +39,27 @@ func (m *MockClient) CreateFileSet(ctx context.Context, id string, fileSet *File
 	return args.Get(0).(*FileSet), args.Error(1)
 }
 
+// DeleteFileSet mocks the DeleteFileSet method
+func (m *MockClient) DeleteFileSet(ctx context.Context, asset_id, file_set_id string) error {
+	args := m.Called(ctx, asset_id, file_set_id)
+	return args.Error(0)
+}
+
+// GetStorageDeletions mocks the GetStorageDeletions method
+func (m *MockClient) GetStorageDeletions(ctx context.Context, storage_id string) ([]FileDeletion, error) {
+	args := m.Called(ctx, storage_id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]FileDeletion), args.Error(1)
+}
+
+// DeleteStorageDeletion mocks the DeleteStorageDeletion method
+func (m *MockClient) DeleteStorageDeletion(ctx context.Context, storage_id, deletion_id string) error {
+	args := m.Called(ctx, storage_id, deletion_id)
+	return args.Error(0)
+}
+
 // CreateFile mocks the CreateFile method
 func (m *MockClient) CreateFile(ctx context.Context, asset_id string, file *File) (*File, error) {
 	args := m.Called(ctx, asset_id, file)
@@ -67,6 +88,30 @@ func (m *MockClient) CreateAssetFormat(ctx context.Context, id string, format *F
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*Format), args.Error(1)
+}
+
+// GetAssetFiles mocks the GetAssetFiles method
+func (m *MockClient) GetAssetFiles(ctx context.Context, asset_id string, generateSignedURL bool) ([]File, error) {
+	args := m.Called(ctx, asset_id, generateSignedURL)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]File), args.Error(1)
+}
+
+// GetStorageTransfersTo mocks the GetStorageTransfersTo method
+func (m *MockClient) GetStorageTransfersTo(ctx context.Context, storage_id string) ([]Transfer, error) {
+	args := m.Called(ctx, storage_id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]Transfer), args.Error(1)
+}
+
+// AckStorageTransferTo mocks the AckStorageTransferTo method
+func (m *MockClient) AckStorageTransferTo(ctx context.Context, storage_id, transfer_id string, success bool) error {
+	args := m.Called(ctx, storage_id, transfer_id, success)
+	return args.Error(0)
 }
 
 // GetStorage mocks the GetStorage method

@@ -18,6 +18,7 @@ func TestUploader(t *testing.T) {
 	cfg.Scanner.Interval = 10
 	cfg.Uploader.Workers = 5
 	cfg.Iconik.StorageID = "5B4BAE0D-5E07-4B36-A2C2-0DF79F558F6F"
+	cfg.Iconik.LocalStorageID = "9A7C1E2D-3F4B-4A5C-8D6E-7F8A9B0C1D2E"
 	tmpDbDir, err := os.MkdirTemp("", "scanner-test-db-*")
 	assert.NoError(t, err)
 
@@ -29,6 +30,10 @@ func TestUploader(t *testing.T) {
 	mockClient.On(
 		"GetStorage", mock.Anything, "5B4BAE0D-5E07-4B36-A2C2-0DF79F558F6F",
 	).Return(&client.Storage{ID: "5B4BAE0D-5E07-4B36-A2C2-0DF79F558F6F"}, nil)
+
+	mockClient.On(
+		"GetStorage", mock.Anything, "9A7C1E2D-3F4B-4A5C-8D6E-7F8A9B0C1D2E",
+	).Return(&client.Storage{ID: "9A7C1E2D-3F4B-4A5C-8D6E-7F8A9B0C1D2E", Method: "FILE"}, nil)
 
 	uploadQueue := make(chan Job, 100)
 

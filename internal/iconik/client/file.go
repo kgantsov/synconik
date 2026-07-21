@@ -16,6 +16,9 @@ type File struct {
 	StorageID         string            `json:"storage_id"`
 	FileSetID         string            `json:"file_set_id"`
 	FormatID          string            `json:"format_id"`
+	AssetID           string            `json:"asset_id,omitempty"`
+	Status            string            `json:"status,omitempty"`
+	URL               string            `json:"url,omitempty"`
 	UploadURL         string            `json:"upload_url"`
 	UploadMethod      string            `json:"upload_method"`
 	UploadFilename    string            `json:"upload_filename"`
@@ -74,6 +77,30 @@ func (c *APIClient) TriggerTranscoding(ctx context.Context, asset_id, file_id st
 	}
 
 	return transcoding.JobID, nil
+}
+
+// GetAssetFiles returns all of an asset's files across storages. When
+// generateSignedURL is true each returned file carries a signed `url` usable to
+// download its bytes directly.
+func (c *APIClient) GetAssetFiles(ctx context.Context, asset_id string, generateSignedURL bool) ([]File, error) {
+	url := fmt.Sprintf("/API/files/v1/assets/%s/files/", asset_id)
+	if generateSignedURL {
+		url += "?generate_signed_url=true"
+	}
+
+	req, err := c.NewRequest(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var resp struct {
+		Objects []File `json:"objects"`
+	}
+	if err := c.Do(req, &resp); err != nil {
+		return nil, err
+	}
+
+	return resp.Objects, nil
 }
 
 func (c *APIClient) CloseFile(ctx context.Context, id, file_id string) error {

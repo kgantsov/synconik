@@ -16,6 +16,7 @@ import (
 	"github.com/kgantsov/synconik/internal/scanner"
 	"github.com/kgantsov/synconik/internal/store"
 	"github.com/kgantsov/synconik/internal/uploader"
+	"github.com/kgantsov/synconik/internal/usecase"
 )
 
 func Run(cmd *cobra.Command, args []string) {
@@ -59,6 +60,30 @@ func Run(cmd *cobra.Command, args []string) {
 	}
 	scanner.Start()
 
+	// Poll Iconik for transfers of file sets onto the local storage and pull the
+	// originals back to disk, and (when enabled) for queued deletions to remove
+	// local files whose file set was deleted in Iconik.
+	restoreUseCase := usecase.NewRestoreUseCase(config, client, badgerStore)
+	deletionUseCase := usecase.NewDeletionUseCase(config, client, badgerStore)
+	poll := func() {
+		restoreUseCase.RestoreRequested()
+		deletionUseCase.ProcessDeletions()
+	}
+	restoreTicker := time.NewTicker(time.Duration(config.Scanner.Interval) * time.Second)
+	restoreDone := make(chan struct{})
+	go func() {
+		poll()
+		for {
+			select {
+			case <-restoreTicker.C:
+				poll()
+			case <-restoreDone:
+				restoreTicker.Stop()
+				return
+			}
+		}
+	}()
+
 	done := make(chan struct{})
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
@@ -72,6 +97,7 @@ func Run(cmd *cobra.Command, args []string) {
 
 	<-done
 
+	close(restoreDone)
 	scanner.Stop()
 	uploader.Stop()
 

@@ -11,6 +11,9 @@ type File struct {
 	FormatID         string `json:"format_id,omitempty"`
 	FileSetID        string `json:"file_set_id,omitempty"`
 	ID               string `json:"id,omitempty"`
+	LocalStorageID   string `json:"local_storage_id,omitempty"`
+	LocalFileSetID   string `json:"local_file_set_id,omitempty"`
+	LocalFileID      string `json:"local_file_id,omitempty"`
 	Size             int    `json:"size,omitempty"`
 	FileDateCreated  string `json:"file_date_created,omitempty"`
 	FileDateModified string `json:"file_date_modified,omitempty"`

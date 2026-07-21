@@ -53,6 +53,12 @@ func (u *Uploader) Start() error {
 		return err
 	}
 
+	localStorage, err := u.client.GetStorage(ctx, u.Config.Iconik.LocalStorageID)
+	if err != nil {
+		log.Error().Err(err).Str("service", "uploader").Msgf("Error getting local storage")
+		return err
+	}
+
 	// Start the uploader
 	for i := 0; i < u.MaxWorkers; i++ {
 		worker := NewWorker(
@@ -62,6 +68,7 @@ func (u *Uploader) Start() error {
 			fmt.Sprintf("worker-%d", i),
 			u.WorkerPool,
 			storage,
+			localStorage,
 		)
 		worker.Start()
 

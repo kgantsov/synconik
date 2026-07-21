@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/dgraph-io/badger/v4"
 	"github.com/kgantsov/synconik/internal/entity"
@@ -102,6 +103,41 @@ func (s *BadgerStore) SaveFile(path string, file *entity.File) error {
 
 func (s *BadgerStore) DeleteFile(path string) error {
 	return s.Delete(FILES_BUCKET, path)
+}
+
+// ListFiles iterates the files bucket and returns every stored file with its
+// relative path key.
+func (s *BadgerStore) ListFiles() ([]FileEntry, error) {
+	var entries []FileEntry
+	prefix := []byte(fmt.Sprintf("%s:", FILES_BUCKET))
+
+	err := s.db.View(func(txn *badger.Txn) error {
+		it := txn.NewIterator(badger.DefaultIteratorOptions)
+		defer it.Close()
+
+		for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
+			item := it.Item()
+			path := strings.TrimPrefix(string(item.Key()), string(prefix))
+
+			val, err := item.ValueCopy(nil)
+			if err != nil {
+				return err
+			}
+
+			file := &entity.File{}
+			if err := file.Unmarshal(val); err != nil {
+				return err
+			}
+
+			entries = append(entries, FileEntry{Path: path, File: file})
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return entries, nil
 }
 
 // getKey generates the key with the bucket prefix

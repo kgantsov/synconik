@@ -27,10 +27,11 @@ type UploaderConfig struct {
 }
 
 type Iconik struct {
-	URL       string `mapstructure:"url"`
-	AppID     string `mapstructure:"app_id"`
-	Token     string `mapstructure:"token"`
-	StorageID string `mapstructure:"storage_id"`
+	URL            string `mapstructure:"url"`
+	AppID          string `mapstructure:"app_id"`
+	Token          string `mapstructure:"token"`
+	StorageID      string `mapstructure:"storage_id"`
+	LocalStorageID string `mapstructure:"local_storage_id"`
 }
 
 type Store struct {
@@ -88,6 +89,7 @@ func InitCobraCommand(runFunc func(cmd *cobra.Command, args []string)) *cobra.Co
 				"iconik.app_id",
 				"iconik.token",
 				"iconik.storage_id",
+				"iconik.local_storage_id",
 				"store.data_dir",
 			}
 
@@ -115,6 +117,7 @@ func InitCobraCommand(runFunc func(cmd *cobra.Command, args []string)) *cobra.Co
 	rootCmd.Flags().String("iconik.app_id", "", "Iconik app ID")
 	rootCmd.Flags().String("iconik.token", "", "Iconik token")
 	rootCmd.Flags().String("iconik.storage_id", "", "Iconik storage ID")
+	rootCmd.Flags().String("iconik.local_storage_id", "", "Iconik local (FILE method) storage ID")
 
 	rootCmd.Flags().String("store.data_dir", "db", "Data directory")
 
@@ -130,6 +133,7 @@ func InitCobraCommand(runFunc func(cmd *cobra.Command, args []string)) *cobra.Co
 	viper.BindPFlag("iconik.app_id", rootCmd.Flags().Lookup("iconik.app_id"))
 	viper.BindPFlag("iconik.token", rootCmd.Flags().Lookup("iconik.token"))
 	viper.BindPFlag("iconik.storage_id", rootCmd.Flags().Lookup("iconik.storage_id"))
+	viper.BindPFlag("iconik.local_storage_id", rootCmd.Flags().Lookup("iconik.local_storage_id"))
 
 	viper.BindPFlag("store.data_dir", rootCmd.Flags().Lookup("store.data_dir"))
 
