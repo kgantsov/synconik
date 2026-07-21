@@ -79,6 +79,7 @@ scanner:
 
 uploader:
   workers: 5              # number of concurrent upload workers
+  stability_window: 30    # seconds to wait for a file to stop changing before uploading
 
 log:
   level: "info"           # trace | debug | info | warn | error
