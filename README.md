@@ -69,6 +69,8 @@ iconik:
   storage_id: "your-storage-id"
   # Local ("FILE" method) storage that mirrors scanner.dir on this machine
   local_storage_id: "your-local-storage-id"
+  # Optional: nest every new collection/asset under an existing collection.
+  # collection_id: "your-root-collection-id"
 
 store:
   data_dir: "db"          # directory for the BadgerDB sync state

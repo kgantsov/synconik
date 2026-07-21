@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -37,6 +39,10 @@ type Iconik struct {
 	Token          string `mapstructure:"token"`
 	StorageID      string `mapstructure:"storage_id"`
 	LocalStorageID string `mapstructure:"local_storage_id"`
+	// CollectionID is an optional root collection. When set, top-level directories
+	// (collections) and top-level files (assets) are nested under it instead of the
+	// Iconik root. Nested items still resolve their parent from the local store.
+	CollectionID string `mapstructure:"collection_id"`
 }
 
 type Store struct {
@@ -65,6 +71,15 @@ func LoadConfig() (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+// StoragePrefix is the cloud-storage directory prefix, derived from the last path
+// segment of scanner.dir (e.g. ".../originals/" -> "originals"). It is prepended to
+// the cloud (B2/S3/GCS) directory_path so uploaded objects mirror the local folder
+// name. The local ("FILE" method) storage is mounted at scanner.dir, so its paths
+// stay relative and must not include this prefix.
+func (c *Config) StoragePrefix() string {
+	return filepath.Base(strings.TrimRight(c.Scanner.Dir, "/"))
 }
 
 func InitCobraCommand(runFunc func(cmd *cobra.Command, args []string)) *cobra.Command {
@@ -128,6 +143,9 @@ func InitCobraCommand(runFunc func(cmd *cobra.Command, args []string)) *cobra.Co
 	rootCmd.Flags().String("iconik.token", "", "Iconik token")
 	rootCmd.Flags().String("iconik.storage_id", "", "Iconik storage ID")
 	rootCmd.Flags().String("iconik.local_storage_id", "", "Iconik local (FILE method) storage ID")
+	rootCmd.Flags().String(
+		"iconik.collection_id", "", "Optional root Iconik collection ID to nest everything under",
+	)
 
 	rootCmd.Flags().String("store.data_dir", "db", "Data directory")
 
@@ -145,6 +163,7 @@ func InitCobraCommand(runFunc func(cmd *cobra.Command, args []string)) *cobra.Co
 	viper.BindPFlag("iconik.token", rootCmd.Flags().Lookup("iconik.token"))
 	viper.BindPFlag("iconik.storage_id", rootCmd.Flags().Lookup("iconik.storage_id"))
 	viper.BindPFlag("iconik.local_storage_id", rootCmd.Flags().Lookup("iconik.local_storage_id"))
+	viper.BindPFlag("iconik.collection_id", rootCmd.Flags().Lookup("iconik.collection_id"))
 
 	viper.BindPFlag("store.data_dir", rootCmd.Flags().Lookup("store.data_dir"))
 

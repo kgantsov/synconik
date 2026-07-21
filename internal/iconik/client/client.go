@@ -15,6 +15,7 @@ type Client interface {
 	CreateAsset(ctx context.Context, asset *Asset) (*Asset, error)
 
 	CreateCollection(ctx context.Context, collection *Collection) (*Collection, error)
+	SearchCollections(ctx context.Context, parentID, query string) ([]Collection, error)
 
 	CreateFileSet(ctx context.Context, id string, fileSet *FileSet) (*FileSet, error)
 	DeleteFileSet(ctx context.Context, asset_id, file_set_id string) error
@@ -27,6 +28,7 @@ type Client interface {
 	CreateAssetFormat(ctx context.Context, id string, format *Format) (*Format, error)
 
 	GetStorage(ctx context.Context, id string) (*Storage, error)
+	GetStorageFiles(ctx context.Context, storageID, directoryPath string) ([]File, error)
 	GetStorageTransfersTo(ctx context.Context, storage_id string) ([]Transfer, error)
 	AckStorageTransferTo(ctx context.Context, storage_id, transfer_id string, success bool) error
 

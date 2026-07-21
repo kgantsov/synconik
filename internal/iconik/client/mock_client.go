@@ -30,6 +30,15 @@ func (m *MockClient) CreateCollection(ctx context.Context, collection *Collectio
 	return args.Get(0).(*Collection), args.Error(1)
 }
 
+// SearchCollections mocks the SearchCollections method
+func (m *MockClient) SearchCollections(ctx context.Context, parentID, query string) ([]Collection, error) {
+	args := m.Called(ctx, parentID, query)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]Collection), args.Error(1)
+}
+
 // CreateFileSet mocks the CreateFileSet method
 func (m *MockClient) CreateFileSet(ctx context.Context, id string, fileSet *FileSet) (*FileSet, error) {
 	args := m.Called(ctx, id, fileSet)
@@ -112,6 +121,17 @@ func (m *MockClient) GetStorageTransfersTo(ctx context.Context, storage_id strin
 func (m *MockClient) AckStorageTransferTo(ctx context.Context, storage_id, transfer_id string, success bool) error {
 	args := m.Called(ctx, storage_id, transfer_id, success)
 	return args.Error(0)
+}
+
+// GetStorageFiles mocks the GetStorageFiles method
+func (m *MockClient) GetStorageFiles(
+	ctx context.Context, storageID, directoryPath string,
+) ([]File, error) {
+	args := m.Called(ctx, storageID, directoryPath)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]File), args.Error(1)
 }
 
 // GetStorage mocks the GetStorage method

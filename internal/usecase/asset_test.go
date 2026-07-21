@@ -7,295 +7,289 @@ import (
 	"time"
 
 	"github.com/kgantsov/synconik/internal/config"
+	"github.com/kgantsov/synconik/internal/entity"
 	"github.com/kgantsov/synconik/internal/iconik/client"
 	icnk_client "github.com/kgantsov/synconik/internal/iconik/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
-func TestUploadAsset(t *testing.T) {
-	store, _, cleanup := setupTestDB(t)
-	defer cleanup()
+const (
+	cloudStorageID = "240E2FF6-0215-4F10-A0A4-37366C0F710B"
+	localStorageID = "8C1F2A3B-LOCAL-STORAGE-ID"
+)
 
-	dir := t.TempDir()
-
-	imagePath := filepath.Join(dir, "image.jpg")
-	err := os.WriteFile(imagePath, []byte("test"), 0644)
+// makeTestFile writes a real file so os.Stat yields a usable FileInfo (Name/Size/
+// ModTime). The path passed to UploadAsset is independent of where this lives — the
+// upload itself is mocked, so the bytes are never read.
+func makeTestFile(t *testing.T, name string) os.FileInfo {
+	p := filepath.Join(t.TempDir(), name)
+	assert.NoError(t, os.WriteFile(p, []byte("test"), 0644))
+	info, err := os.Stat(p)
 	assert.NoError(t, err)
+	return info
+}
 
-	imageFileInfo, err := os.Stat(imagePath)
-	assert.NoError(t, err)
-
-	cfg := &config.Config{
-		Scanner: config.ScannerConfig{
-			Dir:      dir,
-			Interval: 10,
+func testStorages() (*icnk_client.Storage, *icnk_client.Storage) {
+	return &icnk_client.Storage{
+			ID: cloudStorageID, Name: "test", Method: "S3", Purpose: "FILES", Status: "ACTIVE",
 		},
-	}
+		&icnk_client.Storage{
+			ID: localStorageID, Name: "local", Method: "FILE", Purpose: "FILES", Status: "ACTIVE",
+		}
+}
 
-	client := client.NewMockClient()
-	storage := &icnk_client.Storage{
-		ID:      "240E2FF6-0215-4F10-A0A4-37366C0F710B",
-		Name:    "test",
-		Method:  "S3",
-		Purpose: "FILES",
-		Status:  "ACTIVE",
-	}
-	localStorage := &icnk_client.Storage{
-		ID:      "8C1F2A3B-LOCAL-STORAGE-ID",
-		Name:    "local",
-		Method:  "FILE",
-		Purpose: "FILES",
-		Status:  "ACTIVE",
-	}
-	assetUseCase := NewAssetUseCase(cfg, client, store, storage, localStorage)
+type uploadIDs struct {
+	asset, format, cloudFileSet, cloudFile, localFileSet, localFile string
+}
 
-	client.On("CreateAsset", mock.Anything, &icnk_client.Asset{
-		Title:  imageFileInfo.Name(),
-		Status: "ACTIVE",
-		Type:   "ASSET",
-	}).Return(&icnk_client.Asset{
-		ID: "47265105-BE2B-4C3F-8997-66BAB2893D0D",
-	}, nil)
+// mockHappyUpload registers the full new-upload handshake: the storage dedup check
+// returns no match, then the cloud + local file sets/files are created. cloudDir is
+// the prefixed cloud directory_path; localDir is the unprefixed local one. Returns
+// the *File that CreateFile yields for the cloud copy (used to match Upload).
+func mockHappyUpload(
+	c *client.MockClient, cloudDir, localDir, collectionID string, info os.FileInfo, ids uploadIDs,
+) *icnk_client.File {
+	created := info.ModTime().Format(time.RFC3339)
 
-	client.On("CreateAssetFormat", mock.Anything, "47265105-BE2B-4C3F-8997-66BAB2893D0D", &icnk_client.Format{
+	c.On("GetStorageFiles", mock.Anything, cloudStorageID, cloudDir).
+		Return([]icnk_client.File{}, nil)
+
+	c.On("CreateAsset", mock.Anything, &icnk_client.Asset{
+		Title:        info.Name(),
+		Status:       "ACTIVE",
+		Type:         "ASSET",
+		CollectionID: collectionID,
+	}).Return(&icnk_client.Asset{ID: ids.asset}, nil)
+
+	c.On("CreateAssetFormat", mock.Anything, ids.asset, &icnk_client.Format{
 		Name:           "ORIGINAL",
 		Status:         "ACTIVE",
 		Metadata:       []map[string]string{{"internet_media_type": "image/jpeg"}},
 		StorageMethods: []string{"S3", "FILE"},
-	}).Return(&icnk_client.Format{
-		ID: "EDEF4933-4CB5-4FFE-B55F-C00549AC164B",
-	}, nil)
+	}).Return(&icnk_client.Format{ID: ids.format}, nil)
 
-	client.On("CreateFileSet", mock.Anything, "47265105-BE2B-4C3F-8997-66BAB2893D0D", &icnk_client.FileSet{
-		FormatID:     "EDEF4933-4CB5-4FFE-B55F-C00549AC164B",
-		StorageID:    "240E2FF6-0215-4F10-A0A4-37366C0F710B",
-		BaseDir:      dir + "/",
-		Name:         imageFileInfo.Name(),
+	// Cloud (S3) file set + file, using the prefixed directory path.
+	c.On("CreateFileSet", mock.Anything, ids.asset, &icnk_client.FileSet{
+		FormatID:     ids.format,
+		StorageID:    cloudStorageID,
+		BaseDir:      cloudDir,
+		Name:         info.Name(),
 		ComponentIds: []string{},
-	}).Return(&icnk_client.FileSet{
-		ID: "05BE6FD5-9B15-4C7D-8B54-5749239A89D4",
-	}, nil)
+	}).Return(&icnk_client.FileSet{ID: ids.cloudFileSet}, nil)
 
-	fileInfo := &icnk_client.File{
-		ID:            "D025605F-CF64-4EE5-9F48-E6DD5D363473",
-		Name:          imageFileInfo.Name(),
-		OriginalName:  imageFileInfo.Name(),
-		DirectoryPath: dir,
-		Size:          imageFileInfo.Size(),
-		Type:          "image/jpeg",
-		FormatID:      "EDEF4933-4CB5-4FFE-B55F-C00549AC164B",
-		FileSetID:     "05BE6FD5-9B15-4C7D-8B54-5749239A89D4",
+	cloudFile := &icnk_client.File{
+		ID:            ids.cloudFile,
+		Name:          info.Name(),
+		OriginalName:  info.Name(),
+		DirectoryPath: cloudDir,
+		Size:          info.Size(),
+		FormatID:      ids.format,
+		FileSetID:     ids.cloudFileSet,
 		UploadURL:     "https://test.com",
-		UploadCredentials: map[string]string{
-			"access_key": "test",
-			"secret_key": "test",
-		},
 	}
-	client.On("CreateFile", mock.Anything, "47265105-BE2B-4C3F-8997-66BAB2893D0D", &icnk_client.File{
-		OriginalName:     imageFileInfo.Name(),
-		DirectoryPath:    dir + "/",
-		Size:             imageFileInfo.Size(),
+	c.On("CreateFile", mock.Anything, ids.asset, &icnk_client.File{
+		OriginalName:     info.Name(),
+		DirectoryPath:    cloudDir,
+		Size:             info.Size(),
 		Type:             "FILE",
-		StorageID:        "240E2FF6-0215-4F10-A0A4-37366C0F710B",
-		FormatID:         "EDEF4933-4CB5-4FFE-B55F-C00549AC164B",
-		FileSetID:        "05BE6FD5-9B15-4C7D-8B54-5749239A89D4",
-		FileDateCreated:  imageFileInfo.ModTime().Format(time.RFC3339),
-		FileDateModified: imageFileInfo.ModTime().Format(time.RFC3339),
-	}).Return(fileInfo, nil)
+		StorageID:        cloudStorageID,
+		FormatID:         ids.format,
+		FileSetID:        ids.cloudFileSet,
+		FileDateCreated:  created,
+		FileDateModified: created,
+	}).Return(cloudFile, nil)
 
-	client.On("Upload", mock.Anything, mock.Anything, mock.Anything, fileInfo).Return(nil)
+	c.On("Upload", mock.Anything, mock.Anything, mock.Anything, cloudFile).Return(nil)
+	c.On("CloseFile", mock.Anything, ids.asset, ids.cloudFile).Return(nil)
+	c.On("TriggerTranscoding", mock.Anything, ids.asset, ids.cloudFile).
+		Return("C2BC2D18-FBF5-4D89-92B3-35E586ABCCD8", nil)
 
-	client.On(
-		"CloseFile",
-		mock.Anything,
-		"47265105-BE2B-4C3F-8997-66BAB2893D0D",
-		"D025605F-CF64-4EE5-9F48-E6DD5D363473",
-	).Return(nil)
-	client.On(
-		"TriggerTranscoding",
-		mock.Anything,
-		"47265105-BE2B-4C3F-8997-66BAB2893D0D",
-		"D025605F-CF64-4EE5-9F48-E6DD5D363473",
-	).Return("C2BC2D18-FBF5-4D89-92B3-35E586ABCCD8", nil)
-
-	// Local ("FILE" method) storage registration: a second file_set + file with
-	// no byte upload, closed to mark the file present locally.
-	client.On("CreateFileSet", mock.Anything, "47265105-BE2B-4C3F-8997-66BAB2893D0D", &icnk_client.FileSet{
-		FormatID:     "EDEF4933-4CB5-4FFE-B55F-C00549AC164B",
-		StorageID:    "8C1F2A3B-LOCAL-STORAGE-ID",
-		BaseDir:      dir + "/",
-		Name:         imageFileInfo.Name(),
+	// Local ("FILE" method) file set + file, using the unprefixed directory path.
+	c.On("CreateFileSet", mock.Anything, ids.asset, &icnk_client.FileSet{
+		FormatID:     ids.format,
+		StorageID:    localStorageID,
+		BaseDir:      localDir,
+		Name:         info.Name(),
 		ComponentIds: []string{},
-	}).Return(&icnk_client.FileSet{
-		ID: "LOCALFS-1234",
-	}, nil)
+	}).Return(&icnk_client.FileSet{ID: ids.localFileSet}, nil)
 
-	client.On("CreateFile", mock.Anything, "47265105-BE2B-4C3F-8997-66BAB2893D0D", &icnk_client.File{
-		OriginalName:     imageFileInfo.Name(),
-		DirectoryPath:    dir + "/",
-		Size:             imageFileInfo.Size(),
+	c.On("CreateFile", mock.Anything, ids.asset, &icnk_client.File{
+		OriginalName:     info.Name(),
+		DirectoryPath:    localDir,
+		Size:             info.Size(),
 		Type:             "FILE",
-		StorageID:        "8C1F2A3B-LOCAL-STORAGE-ID",
-		FormatID:         "EDEF4933-4CB5-4FFE-B55F-C00549AC164B",
-		FileSetID:        "LOCALFS-1234",
-		FileDateCreated:  imageFileInfo.ModTime().Format(time.RFC3339),
-		FileDateModified: imageFileInfo.ModTime().Format(time.RFC3339),
-	}).Return(&icnk_client.File{
-		ID: "LOCALFILE-5678",
-	}, nil)
+		StorageID:        localStorageID,
+		FormatID:         ids.format,
+		FileSetID:        ids.localFileSet,
+		FileDateCreated:  created,
+		FileDateModified: created,
+	}).Return(&icnk_client.File{ID: ids.localFile}, nil)
 
-	client.On(
-		"CloseFile",
-		mock.Anything,
-		"47265105-BE2B-4C3F-8997-66BAB2893D0D",
-		"LOCALFILE-5678",
-	).Return(nil)
+	c.On("CloseFile", mock.Anything, ids.asset, ids.localFile).Return(nil)
 
-	file, err := assetUseCase.UploadAsset(imagePath, imageFileInfo)
+	return cloudFile
+}
+
+func TestUploadAsset(t *testing.T) {
+	store, _, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	info := makeTestFile(t, "image.jpg")
+
+	cfg := &config.Config{
+		Scanner: config.ScannerConfig{Dir: "/data/originals/", Interval: 10},
+	}
+	storage, localStorage := testStorages()
+	c := client.NewMockClient()
+	uc := NewAssetUseCase(cfg, c, store, storage, localStorage)
+
+	ids := uploadIDs{
+		asset:        "47265105-BE2B-4C3F-8997-66BAB2893D0D",
+		format:       "EDEF4933-4CB5-4FFE-B55F-C00549AC164B",
+		cloudFileSet: "05BE6FD5-9B15-4C7D-8B54-5749239A89D4",
+		cloudFile:    "D025605F-CF64-4EE5-9F48-E6DD5D363473",
+		localFileSet: "LOCALFS-1234",
+		localFile:    "LOCALFILE-5678",
+	}
+	// The scan-root folder ("originals") is prepended on the cloud side only.
+	mockHappyUpload(c, "originals/2026/2026-05-23", "2026/2026-05-23/", "", info, ids)
+
+	file, err := uc.UploadAsset("2026/2026-05-23/"+info.Name(), info)
 	assert.NoError(t, err)
-	assert.Equal(t, file.ID, "D025605F-CF64-4EE5-9F48-E6DD5D363473")
+	assert.Equal(t, ids.cloudFile, file.ID)
+	assert.Equal(t, localStorageID, file.LocalStorageID)
+	assert.Equal(t, ids.localFileSet, file.LocalFileSetID)
+	c.AssertExpectations(t)
 }
 
 func TestUploadIfNotExists(t *testing.T) {
 	store, _, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	dir := t.TempDir()
-
-	imagePath := filepath.Join(dir, "image.jpg")
-	err := os.WriteFile(imagePath, []byte("test"), 0644)
-	assert.NoError(t, err)
-
-	imageFileInfo, err := os.Stat(imagePath)
-	assert.NoError(t, err)
+	info := makeTestFile(t, "image.jpg")
 
 	cfg := &config.Config{
-		Scanner: config.ScannerConfig{
-			Dir:      dir,
-			Interval: 10,
-		},
+		Scanner: config.ScannerConfig{Dir: "/data/originals/", Interval: 10},
 	}
+	storage, localStorage := testStorages()
+	c := client.NewMockClient()
+	uc := NewAssetUseCase(cfg, c, store, storage, localStorage)
 
-	client := client.NewMockClient()
-	storage := &icnk_client.Storage{
-		ID:      "240E2FF6-0215-4F10-A0A4-37366C0F710B",
-		Name:    "test",
-		Method:  "S3",
-		Purpose: "FILES",
-		Status:  "ACTIVE",
+	ids := uploadIDs{
+		asset:        "47265105-BE2B-4C3F-8997-66BAB2893D0D",
+		format:       "EDEF4933-4CB5-4FFE-B55F-C00549AC164B",
+		cloudFileSet: "05BE6FD5-9B15-4C7D-8B54-5749239A89D4",
+		cloudFile:    "D025605F-CF64-4EE5-9F48-E6DD5D363473",
+		localFileSet: "LOCALFS-1234",
+		localFile:    "LOCALFILE-5678",
 	}
-	localStorage := &icnk_client.Storage{
-		ID:      "8C1F2A3B-LOCAL-STORAGE-ID",
-		Name:    "local",
-		Method:  "FILE",
-		Purpose: "FILES",
-		Status:  "ACTIVE",
-	}
-	assetUseCase := NewAssetUseCase(cfg, client, store, storage, localStorage)
+	mockHappyUpload(c, "originals/2026/2026-05-23", "2026/2026-05-23/", "", info, ids)
 
-	client.On("CreateAsset", mock.Anything, &icnk_client.Asset{
-		Title:  imageFileInfo.Name(),
-		Status: "ACTIVE",
-		Type:   "ASSET",
-	}).Return(&icnk_client.Asset{
-		ID: "47265105-BE2B-4C3F-8997-66BAB2893D0D",
-	}, nil)
-
-	client.On("CreateAssetFormat", mock.Anything, "47265105-BE2B-4C3F-8997-66BAB2893D0D", &icnk_client.Format{
-		Name:           "ORIGINAL",
-		Status:         "ACTIVE",
-		Metadata:       []map[string]string{{"internet_media_type": "image/jpeg"}},
-		StorageMethods: []string{"S3", "FILE"},
-	}).Return(&icnk_client.Format{
-		ID: "EDEF4933-4CB5-4FFE-B55F-C00549AC164B",
-	}, nil)
-
-	client.On("CreateFileSet", mock.Anything, "47265105-BE2B-4C3F-8997-66BAB2893D0D", &icnk_client.FileSet{
-		FormatID:     "EDEF4933-4CB5-4FFE-B55F-C00549AC164B",
-		StorageID:    "240E2FF6-0215-4F10-A0A4-37366C0F710B",
-		BaseDir:      dir + "/",
-		Name:         imageFileInfo.Name(),
-		ComponentIds: []string{},
-	}).Return(&icnk_client.FileSet{
-		ID: "05BE6FD5-9B15-4C7D-8B54-5749239A89D4",
-	}, nil)
-
-	fileInfo := &icnk_client.File{
-		ID:            "D025605F-CF64-4EE5-9F48-E6DD5D363473",
-		Name:          imageFileInfo.Name(),
-		OriginalName:  imageFileInfo.Name(),
-		DirectoryPath: dir,
-		Size:          imageFileInfo.Size(),
-		Type:          "image/jpeg",
-		FormatID:      "EDEF4933-4CB5-4FFE-B55F-C00549AC164B",
-		FileSetID:     "05BE6FD5-9B15-4C7D-8B54-5749239A89D4",
-		UploadURL:     "https://test.com",
-		UploadCredentials: map[string]string{
-			"access_key": "test",
-			"secret_key": "test",
-		},
-	}
-	client.On("CreateFile", mock.Anything, "47265105-BE2B-4C3F-8997-66BAB2893D0D", &icnk_client.File{
-		OriginalName:     imageFileInfo.Name(),
-		DirectoryPath:    dir + "/",
-		Size:             imageFileInfo.Size(),
-		Type:             "FILE",
-		StorageID:        "240E2FF6-0215-4F10-A0A4-37366C0F710B",
-		FormatID:         "EDEF4933-4CB5-4FFE-B55F-C00549AC164B",
-		FileSetID:        "05BE6FD5-9B15-4C7D-8B54-5749239A89D4",
-		FileDateCreated:  imageFileInfo.ModTime().Format(time.RFC3339),
-		FileDateModified: imageFileInfo.ModTime().Format(time.RFC3339),
-	}).Return(fileInfo, nil)
-
-	client.On("Upload", mock.Anything, mock.Anything, mock.Anything, fileInfo).Return(nil)
-
-	client.On(
-		"CloseFile",
-		mock.Anything,
-		"47265105-BE2B-4C3F-8997-66BAB2893D0D",
-		"D025605F-CF64-4EE5-9F48-E6DD5D363473",
-	).Return(nil)
-	client.On(
-		"TriggerTranscoding",
-		mock.Anything,
-		"47265105-BE2B-4C3F-8997-66BAB2893D0D",
-		"D025605F-CF64-4EE5-9F48-E6DD5D363473",
-	).Return("C2BC2D18-FBF5-4D89-92B3-35E586ABCCD8", nil)
-
-	// Local ("FILE" method) storage registration: a second file_set + file with
-	// no byte upload, closed to mark the file present locally.
-	client.On("CreateFileSet", mock.Anything, "47265105-BE2B-4C3F-8997-66BAB2893D0D", &icnk_client.FileSet{
-		FormatID:     "EDEF4933-4CB5-4FFE-B55F-C00549AC164B",
-		StorageID:    "8C1F2A3B-LOCAL-STORAGE-ID",
-		BaseDir:      dir + "/",
-		Name:         imageFileInfo.Name(),
-		ComponentIds: []string{},
-	}).Return(&icnk_client.FileSet{
-		ID: "LOCALFS-1234",
-	}, nil)
-
-	client.On("CreateFile", mock.Anything, "47265105-BE2B-4C3F-8997-66BAB2893D0D", &icnk_client.File{
-		OriginalName:     imageFileInfo.Name(),
-		DirectoryPath:    dir + "/",
-		Size:             imageFileInfo.Size(),
-		Type:             "FILE",
-		StorageID:        "8C1F2A3B-LOCAL-STORAGE-ID",
-		FormatID:         "EDEF4933-4CB5-4FFE-B55F-C00549AC164B",
-		FileSetID:        "LOCALFS-1234",
-		FileDateCreated:  imageFileInfo.ModTime().Format(time.RFC3339),
-		FileDateModified: imageFileInfo.ModTime().Format(time.RFC3339),
-	}).Return(&icnk_client.File{
-		ID: "LOCALFILE-5678",
-	}, nil)
-
-	client.On(
-		"CloseFile",
-		mock.Anything,
-		"47265105-BE2B-4C3F-8997-66BAB2893D0D",
-		"LOCALFILE-5678",
-	).Return(nil)
-
-	err = assetUseCase.UploadIfNotExists(imagePath, imageFileInfo)
+	err := uc.UploadIfNotExists("2026/2026-05-23/"+info.Name(), info)
 	assert.NoError(t, err)
+	c.AssertExpectations(t)
+}
+
+// TestUploadAssetRootCollection verifies a root-level file (no parent directory) is
+// nested under the configured root collection and uses the bare "originals" prefix.
+func TestUploadAssetRootCollection(t *testing.T) {
+	store, _, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	info := makeTestFile(t, "image.jpg")
+
+	cfg := &config.Config{
+		Scanner: config.ScannerConfig{Dir: "/data/originals/", Interval: 10},
+		Iconik:  config.Iconik{CollectionID: "ROOT-COLLECTION"},
+	}
+	storage, localStorage := testStorages()
+	c := client.NewMockClient()
+	uc := NewAssetUseCase(cfg, c, store, storage, localStorage)
+
+	// The scanner processes the scan root first, mapping "" to the configured root
+	// collection; a root-level file then resolves that as its parent from the store.
+	assert.NoError(t, store.SaveFile("", &entity.File{ID: "ROOT-COLLECTION", Type: "directory"}))
+
+	ids := uploadIDs{
+		asset:        "ASSET-1",
+		format:       "FORMAT-1",
+		cloudFileSet: "CLOUDFS-1",
+		cloudFile:    "CLOUDFILE-1",
+		localFileSet: "LOCALFS-1",
+		localFile:    "LOCALFILE-1",
+	}
+	mockHappyUpload(c, "originals", "", "ROOT-COLLECTION", info, ids)
+
+	file, err := uc.UploadAsset(info.Name(), info)
+	assert.NoError(t, err)
+	assert.Equal(t, ids.cloudFile, file.ID)
+	c.AssertExpectations(t)
+}
+
+// TestUploadAssetAlreadyExists verifies that when the file already lives on the cloud
+// storage we record the mapping, register the missing local mirror, and never create
+// a new asset or upload bytes.
+func TestUploadAssetAlreadyExists(t *testing.T) {
+	store, _, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	info := makeTestFile(t, "image.jpg")
+
+	cfg := &config.Config{
+		Scanner: config.ScannerConfig{Dir: "/data/originals/", Interval: 10},
+	}
+	storage, localStorage := testStorages()
+	c := client.NewMockClient()
+	uc := NewAssetUseCase(cfg, c, store, storage, localStorage)
+
+	c.On("GetStorageFiles", mock.Anything, cloudStorageID, "originals/2026/2026-05-23").
+		Return([]icnk_client.File{{
+			ID:           "EXISTING-FILE",
+			Name:         "_DSC1286_someid.jpg", // Iconik mangles the storage name...
+			OriginalName: info.Name(),           // ...so matching is on original_name
+			AssetID:      "EXISTING-ASSET",
+			FormatID:     "EXISTING-FORMAT",
+			FileSetID:    "EXISTING-FILESET",
+			StorageID:    cloudStorageID,
+		}}, nil)
+
+	// Asset has no local ("FILE") copy yet, so a local mirror file set is created.
+	c.On("GetAssetFiles", mock.Anything, "EXISTING-ASSET", false).
+		Return([]icnk_client.File{{ID: "EXISTING-FILE", StorageID: cloudStorageID}}, nil)
+
+	c.On("CreateFileSet", mock.Anything, "EXISTING-ASSET", &icnk_client.FileSet{
+		FormatID:     "EXISTING-FORMAT",
+		StorageID:    localStorageID,
+		BaseDir:      "2026/2026-05-23/",
+		Name:         info.Name(),
+		ComponentIds: []string{},
+	}).Return(&icnk_client.FileSet{ID: "LOCALFS-NEW"}, nil)
+
+	c.On("CreateFile", mock.Anything, "EXISTING-ASSET", &icnk_client.File{
+		OriginalName:     info.Name(),
+		DirectoryPath:    "2026/2026-05-23/",
+		Size:             info.Size(),
+		Type:             "FILE",
+		StorageID:        localStorageID,
+		FormatID:         "EXISTING-FORMAT",
+		FileSetID:        "LOCALFS-NEW",
+		FileDateCreated:  info.ModTime().Format(time.RFC3339),
+		FileDateModified: info.ModTime().Format(time.RFC3339),
+	}).Return(&icnk_client.File{ID: "LOCALFILE-NEW"}, nil)
+
+	c.On("CloseFile", mock.Anything, "EXISTING-ASSET", "LOCALFILE-NEW").Return(nil)
+
+	file, err := uc.UploadAsset("2026/2026-05-23/"+info.Name(), info)
+	assert.NoError(t, err)
+
+	assert.Equal(t, "EXISTING-FILE", file.ID)
+	assert.Equal(t, "EXISTING-ASSET", file.AssetID)
+	assert.Equal(t, "EXISTING-FORMAT", file.FormatID)
+	assert.Equal(t, "LOCALFS-NEW", file.LocalFileSetID)
+	assert.Equal(t, "LOCALFILE-NEW", file.LocalFileID)
+
+	c.AssertNotCalled(t, "CreateAsset", mock.Anything, mock.Anything)
+	c.AssertNotCalled(t, "Upload", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	c.AssertExpectations(t)
 }

@@ -47,6 +47,19 @@ func (uc *CollectionUseCase) CreateCollectionIfNotExists(path string, info os.Fi
 		dirPath = path[:len(path)-len(info.Name())]
 	}
 
+	// Scan root (relativePath == ""): when a root collection_id is configured, treat
+	// that existing collection as the root directory itself — map the scan folder to
+	// it instead of creating a new nested collection. Children then resolve it as
+	// their parent. Without a collection_id, fall through and create a collection for
+	// the scan folder as before.
+	if path == "" && uc.config.Iconik.CollectionID != "" {
+		log.Info().
+			Str("service", "collection_usecase").
+			Str("collection_id", uc.config.Iconik.CollectionID).
+			Msg("Using configured root collection as the scan-root directory")
+		return uc.saveCollection(path, dirPath, info.Name(), uc.config.Iconik.CollectionID)
+	}
+
 	collection := &icnk_client.Collection{
 		Title: info.Name(),
 	}
@@ -56,22 +69,59 @@ func (uc *CollectionUseCase) CreateCollectionIfNotExists(path string, info os.Fi
 		collection.ParentID = parentDir.ID
 	}
 
+	// If a collection with this title already exists under the parent in Iconik (e.g.
+	// the local store was wiped), reuse it instead of creating a duplicate.
+	if existing, ok := uc.findExistingCollection(ctx, collection.ParentID, info.Name()); ok {
+		log.Info().
+			Str("service", "collection_usecase").
+			Str("collection_id", existing.ID).
+			Msgf("Collection already exists in Iconik, recording mapping: %s", path)
+		return uc.saveCollection(path, dirPath, info.Name(), existing.ID)
+	}
+
 	collection, err = uc.client.CreateCollection(ctx, collection)
 	if err != nil {
 		return err
 	}
 
-	file := &entity.File{
-		DirectoryPath: dirPath,
-		Name:          info.Name(),
-		Type:          "directory",
-		ID:            collection.ID,
-	}
+	return uc.saveCollection(path, dirPath, info.Name(), collection.ID)
+}
 
-	err = uc.store.SaveFile(path, file)
+// findExistingCollection looks for a sub-collection of parentID whose title matches,
+// so an already-existing Iconik collection is reused rather than duplicated. It uses
+// the search API (filtered to direct children of parentID) instead of paginating
+// through every child. It can only search under a known parent; at the true root (no
+// parent, no collection_id) it returns false and the caller creates the collection. A
+// lookup error is logged and treated as "not found" so it never blocks collection
+// creation. Because the search query is fuzzy, results are confirmed with an exact
+// title match.
+func (uc *CollectionUseCase) findExistingCollection(
+	ctx context.Context, parentID, title string,
+) (*icnk_client.Collection, bool) {
+	if parentID == "" {
+		return nil, false
+	}
+	subs, err := uc.client.SearchCollections(ctx, parentID, title)
 	if err != nil {
-		return err
+		log.Warn().
+			Err(err).
+			Str("service", "collection_usecase").
+			Msgf("Error searching sub-collections of %s", parentID)
+		return nil, false
 	}
+	for i := range subs {
+		if subs[i].Title == title {
+			return &subs[i], true
+		}
+	}
+	return nil, false
+}
 
-	return nil
+func (uc *CollectionUseCase) saveCollection(path, dirPath, name, id string) error {
+	return uc.store.SaveFile(path, &entity.File{
+		DirectoryPath: dirPath,
+		Name:          name,
+		Type:          "directory",
+		ID:            id,
+	})
 }

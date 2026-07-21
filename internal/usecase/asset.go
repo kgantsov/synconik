@@ -100,6 +100,8 @@ func (uc *AssetUseCase) UploadAsset(path string, info os.FileInfo) (*entity.File
 
 	log.Debug().Str("service", "asset_usecase").Msgf("Uploading file: %s directory: %s", path, dirPath)
 
+	ctx := context.Background()
+
 	f := &entity.File{
 		DirectoryPath:    dirPath,
 		Name:             info.Name(),
@@ -109,10 +111,16 @@ func (uc *AssetUseCase) UploadAsset(path string, info os.FileInfo) (*entity.File
 		FileDateModified: info.ModTime().Format(time.RFC3339),
 	}
 
-	err := uc.store.SaveFile(path, f)
-	if err != nil {
-		log.Error().Err(err).Str("service", "asset_usecase").Msg("Error saving file")
+	// If the file is already present on the cloud storage, record a mapping instead
+	// of re-uploading its bytes (and make sure the local mirror file set exists).
+	if mapped, ok := uc.mapExistingCloudFile(ctx, dirPath, info, f); ok {
+		return mapped, nil
 	}
+
+	// Note: the store record is written by the caller only after this whole handshake
+	// succeeds. If any step below fails we deliberately persist nothing, so the file
+	// is retried on the next scan (the storage dedup check above prevents a duplicate
+	// upload once the bytes did land).
 
 	asset := &icnk_client.Asset{Title: info.Name(), Status: "ACTIVE", Type: "ASSET"}
 
@@ -120,8 +128,6 @@ func (uc *AssetUseCase) UploadAsset(path string, info os.FileInfo) (*entity.File
 	if err == nil {
 		asset.CollectionID = parentDir.ID
 	}
-
-	ctx := context.Background()
 
 	asset, err = uc.client.CreateAsset(ctx, asset)
 	if err != nil {
@@ -147,12 +153,14 @@ func (uc *AssetUseCase) UploadAsset(path string, info os.FileInfo) (*entity.File
 
 	f.FormatID = format.ID
 
+	cloudDir := uc.cloudDir(dirPath)
+
 	fileSet, err := uc.client.CreateFileSet(
 		ctx,
 		asset.ID, &icnk_client.FileSet{
 			FormatID:     format.ID,
 			StorageID:    uc.storage.ID,
-			BaseDir:      dirPath,
+			BaseDir:      cloudDir,
 			Name:         info.Name(),
 			ComponentIds: []string{},
 		},
@@ -172,7 +180,7 @@ func (uc *AssetUseCase) UploadAsset(path string, info os.FileInfo) (*entity.File
 			FormatID:         format.ID,
 			FileSetID:        fileSet.ID,
 			Type:             f.Type,
-			DirectoryPath:    dirPath,
+			DirectoryPath:    cloudDir,
 			OriginalName:     info.Name(),
 			Size:             info.Size(),
 			FileDateCreated:  info.ModTime().Format(time.RFC3339),
@@ -280,4 +288,94 @@ func (uc *AssetUseCase) registerLocalFileSet(
 	f.LocalFileID = file.ID
 
 	return nil
+}
+
+// cloudDir builds the directory_path used on the cloud (B2/S3/GCS) storage from the
+// relative dirPath, prefixed with the scan-root folder name (config.StoragePrefix).
+// The result mirrors the local folder layout, e.g. "2026/2026-05-23/" ->
+// "originals/2026/2026-05-23". Iconik rejects a leading slash and normalizes away a
+// trailing one, so neither is included. The local ("FILE" method) storage keeps the
+// relative dirPath and must not use this prefix.
+func (uc *AssetUseCase) cloudDir(dirPath string) string {
+	prefix := uc.config.StoragePrefix()
+	d := strings.Trim(dirPath, "/")
+	if d == "" {
+		return prefix
+	}
+	return prefix + "/" + d
+}
+
+// mapExistingCloudFile checks whether the file already exists on the cloud storage.
+// When it does, it fills f with the discovered Iconik IDs, ensures the asset has a
+// local ("FILE" method) file set so restore/deletion sync keeps working, and returns
+// (f, true) so the caller can persist the mapping without uploading any bytes. A
+// lookup error is logged and treated as "not found" so it never blocks an upload.
+func (uc *AssetUseCase) mapExistingCloudFile(
+	ctx context.Context, dirPath string, info os.FileInfo, f *entity.File,
+) (*entity.File, bool) {
+	files, err := uc.client.GetStorageFiles(ctx, uc.storage.ID, uc.cloudDir(dirPath))
+	if err != nil {
+		log.Warn().
+			Err(err).
+			Str("service", "asset_usecase").
+			Msgf("Error checking if file exists on storage: %s", info.Name())
+		return nil, false
+	}
+
+	// Iconik's storage `name` can differ from the on-disk original (it may append
+	// the file id, e.g. "_DSC7627_<id>.jpg"), so match on original_name too.
+	var existing *icnk_client.File
+	for i := range files {
+		if files[i].OriginalName == info.Name() || files[i].Name == info.Name() {
+			existing = &files[i]
+			break
+		}
+	}
+	if existing == nil {
+		return nil, false
+	}
+
+	log.Info().
+		Str("service", "asset_usecase").
+		Str("asset_id", existing.AssetID).
+		Msgf("File already exists on storage, recording mapping instead of uploading: %s", info.Name())
+
+	f.AssetID = existing.AssetID
+	f.FormatID = existing.FormatID
+	f.FileSetID = existing.FileSetID
+	f.StorageID = existing.StorageID
+	f.ID = existing.ID
+
+	// Register the local mirror file set only if the asset does not already have one.
+	if !uc.hasLocalFileSet(ctx, existing.AssetID) {
+		if err := uc.registerLocalFileSet(
+			ctx, existing.AssetID, existing.FormatID, dirPath, info, f,
+		); err != nil {
+			log.Error().
+				Err(err).
+				Str("service", "asset_usecase").
+				Msgf("Error registering local file set for existing asset: %s", info.Name())
+		}
+	}
+
+	return f, true
+}
+
+// hasLocalFileSet reports whether the asset already has a file on the local ("FILE"
+// method) storage. A lookup error is logged and treated as "no local file set".
+func (uc *AssetUseCase) hasLocalFileSet(ctx context.Context, assetID string) bool {
+	files, err := uc.client.GetAssetFiles(ctx, assetID, false)
+	if err != nil {
+		log.Warn().
+			Err(err).
+			Str("service", "asset_usecase").
+			Msgf("Error listing files for asset %s", assetID)
+		return false
+	}
+	for _, file := range files {
+		if file.StorageID == uc.localStorage.ID {
+			return true
+		}
+	}
+	return false
 }

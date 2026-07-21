@@ -78,7 +78,11 @@ func (uc *RestoreUseCase) RestoreRequested() {
 }
 
 func (uc *RestoreUseCase) handleTransfer(ctx context.Context, t icnk_client.Transfer) error {
-	relDir := normalizeDir(t.DestinationDirectoryPath)
+	// Iconik reports the destination using the source (cloud) file's directory_path,
+	// which carries the storage prefix (the scan-root folder name). scanner.dir is the
+	// local mount, so strip the prefix before composing the on-disk path — otherwise it
+	// would double (e.g. "originals/originals/..").
+	relDir := normalizeDir(stripStoragePrefix(t.DestinationDirectoryPath, uc.config.StoragePrefix()))
 	filename := t.DestinationFilename
 	if filename == "" {
 		filename = t.DestinationFileSetName
@@ -237,6 +241,24 @@ func (uc *RestoreUseCase) pickSourceURL(files []icnk_client.File, t icnk_client.
 		}
 	}
 	return ""
+}
+
+// stripStoragePrefix removes the cloud-storage directory prefix (the scan-root folder
+// name) from a directory path Iconik reports, so a path relative to the cloud storage
+// ("originals/2026/..") maps back to one relative to scanner.dir ("2026/.."). A path
+// that does not carry the prefix (e.g. already local-relative) is returned unchanged.
+func stripStoragePrefix(dir, prefix string) string {
+	if prefix == "" {
+		return dir
+	}
+	d := strings.TrimPrefix(dir, "/")
+	if d == prefix {
+		return ""
+	}
+	if strings.HasPrefix(d, prefix+"/") {
+		return d[len(prefix)+1:]
+	}
+	return dir
 }
 
 // normalizeDir strips a leading slash and ensures a non-empty directory ends in
