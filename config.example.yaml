@@ -1,0 +1,31 @@
+# Example configuration for synconik.
+# Copy this file to config.yaml and fill in your own values:
+#   cp config.example.yaml config.yaml
+# config.yaml is gitignored because it holds credentials.
+# Every value can also be supplied as a CLI flag or environment variable.
+
+iconik:
+  url: "https://app.iconik.io"
+  app_id: "your-app-id"
+  token: "your-token"
+  # Cloud storage (GCS/S3/B2) that assets are uploaded to
+  storage_id: "your-storage-id"
+  # Local ("FILE" method) storage that mirrors scanner.dir on this machine
+  local_storage_id: "your-local-storage-id"
+
+store:
+  data_dir: "db"            # directory for the BadgerDB sync state
+
+scanner:
+  dir: "data"               # directory to watch and mirror into Iconik
+  interval: 30              # seconds between scans / sync polls
+  # seconds a file's size and mtime must stay unchanged before it is uploaded,
+  # so files still being copied (e.g. off an SD card) aren't uploaded partially
+  # (0 disables the check)
+  stability_window: 30
+
+uploader:
+  workers: 5                # number of concurrent upload workers
+
+log:
+  level: "info"             # trace | debug | info | warn | error

@@ -16,6 +16,15 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+// fileState records a file's size and mtime along with the wall-clock time we
+// first observed that exact (size, mtime) pair. It is used to decide whether a
+// file has stopped changing long enough to be safely uploaded.
+type fileState struct {
+	size      int64
+	mtime     time.Time
+	firstSeen time.Time
+}
+
 type Scanner struct {
 	config         *config.Config
 	UploadJobQueue chan uploader.Job
@@ -24,6 +33,11 @@ type Scanner struct {
 	client            icnk_client.Client
 	collectionUseCase *usecase.CollectionUseCase
 	reconcileUseCase  *usecase.ReconcileUseCase
+
+	// stability tracks the (size, mtime, firstSeen) of files seen in the previous
+	// scan so growing files can be held back until they quiesce. Only accessed
+	// from Scan(), which never runs concurrently with itself.
+	stability map[string]fileState
 
 	wg   *sync.WaitGroup
 	done chan bool
@@ -52,6 +66,8 @@ func NewScanner(
 		reconcileUseCase:  usecase.NewReconcileUseCase(config, client, store),
 
 		UploadJobQueue: uploadJobQueue,
+
+		stability: make(map[string]fileState),
 
 		wg:   &wg,
 		done: make(chan bool),
@@ -92,6 +108,14 @@ func (s *Scanner) Scan() {
 	fileCount := 0
 	dirCount := 0
 
+	now := time.Now()
+	stabilityWindow := time.Duration(s.config.Scanner.StabilityWindow) * time.Second
+
+	// seen collects the state of every file observed in this scan and becomes the
+	// baseline for the next scan. Rebuilding it each pass also prunes entries for
+	// files that have since been deleted.
+	seen := make(map[string]fileState)
+
 	err := filepath.Walk(s.config.Scanner.Dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -128,6 +152,25 @@ func (s *Scanner) Scan() {
 				Str("path", relativePath).
 				Msgf("Found a file %s", info.Name())
 
+			// Carry forward firstSeen if the file's size and mtime are unchanged
+			// since the previous scan; otherwise treat it as freshly changing.
+			cur := fileState{size: info.Size(), mtime: info.ModTime(), firstSeen: now}
+			if prev, ok := s.stability[relativePath]; ok &&
+				prev.size == cur.size && prev.mtime.Equal(cur.mtime) {
+				cur.firstSeen = prev.firstSeen
+			}
+			seen[relativePath] = cur
+
+			// Hold back files that haven't been quiescent for the stability window;
+			// they'll be reconsidered on the next scan once they settle.
+			if stabilityWindow > 0 && now.Sub(cur.firstSeen) < stabilityWindow {
+				log.Debug().
+					Str("service", "scanner").
+					Str("path", relativePath).
+					Msgf("File %s still changing, deferring upload", info.Name())
+				return nil
+			}
+
 			s.wg.Add(1)
 
 			select {
@@ -140,6 +183,8 @@ func (s *Scanner) Scan() {
 		}
 		return nil
 	})
+
+	s.stability = seen
 
 	if err != nil {
 		log.Info().

@@ -16,6 +16,11 @@ var cfgFile string
 type ScannerConfig struct {
 	Dir      string `mapstructure:"dir"`
 	Interval int32  `mapstructure:"interval"`
+	// StabilityWindow is the number of seconds a file's size and mtime must stay
+	// unchanged before it is considered fully written and eligible for upload.
+	// This prevents uploading files that are still being copied (e.g. from an SD
+	// card). A value <= 0 disables the check and enqueues files immediately.
+	StabilityWindow int32 `mapstructure:"stability_window"`
 }
 
 type LoggingConfig struct {
@@ -110,6 +115,11 @@ func InitCobraCommand(runFunc func(cmd *cobra.Command, args []string)) *cobra.Co
 
 	rootCmd.Flags().String("scanner.dir", "", "Directory to scan for files")
 	rootCmd.Flags().Int32("scanner.interval", 10, "Interval in seconds to scan the directory")
+	rootCmd.Flags().Int32(
+		"scanner.stability_window",
+		30,
+		"Seconds a file's size and mtime must stay unchanged before it is uploaded (0 disables the check)",
+	)
 
 	rootCmd.Flags().Int("uploader.workers", 5, "Number of workers to upload files")
 
@@ -126,6 +136,7 @@ func InitCobraCommand(runFunc func(cmd *cobra.Command, args []string)) *cobra.Co
 
 	viper.BindPFlag("scanner.dir", rootCmd.Flags().Lookup("scanner.dir"))
 	viper.BindPFlag("scanner.interval", rootCmd.Flags().Lookup("scanner.interval"))
+	viper.BindPFlag("scanner.stability_window", rootCmd.Flags().Lookup("scanner.stability_window"))
 
 	viper.BindPFlag("uploader.workers", rootCmd.Flags().Lookup("uploader.workers"))
 
