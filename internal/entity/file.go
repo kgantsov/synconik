@@ -33,6 +33,8 @@ type UploadFile struct {
 	StorageID         string            `json:"storage_id"`
 	FileSetID         string            `json:"file_set_id"`
 	FormatID          string            `json:"format_id"`
+	UploadMethod      string            `json:"upload_method"`
+	UploadFilename    string            `json:"upload_filename"`
 	UploadURL         string            `json:"upload_url"`
 	UploadCredentials map[string]string `json:"upload_credentials"`
 	ID                string            `json:"id"`

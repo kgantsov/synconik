@@ -97,12 +97,13 @@ func (s *Scanner) Scan() {
 
 		relativePath := strings.TrimPrefix(path, s.config.Scanner.Dir)
 
-		log.Info().Str("service", "scanner").Str("path", path).Msg("Found a file or directory")
-
 		if info.IsDir() {
 			dirCount++
 
-			log.Info().Str("service", "scanner").Str("path", path).Msgf("Found a directory")
+			log.Info().
+				Str("service", "scanner").
+				Str("path", relativePath).
+				Msgf("Found a directory %s", info.Name())
 
 			err := s.collectionUseCase.CreateCollectionIfNotExists(relativePath, info)
 			if err != nil {
@@ -110,7 +111,10 @@ func (s *Scanner) Scan() {
 			}
 		} else {
 			fileCount++
-			log.Info().Str("service", "scanner").Str("path", relativePath).Msgf("Found a file")
+			log.Info().
+				Str("service", "scanner").
+				Str("path", relativePath).
+				Msgf("Found a file %s", info.Name())
 
 			s.wg.Add(1)
 

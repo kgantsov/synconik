@@ -17,6 +17,8 @@ type File struct {
 	FileSetID         string            `json:"file_set_id"`
 	FormatID          string            `json:"format_id"`
 	UploadURL         string            `json:"upload_url"`
+	UploadMethod      string            `json:"upload_method"`
+	UploadFilename    string            `json:"upload_filename"`
 	UploadCredentials map[string]string `json:"upload_credentials"`
 	ID                string            `json:"id"`
 

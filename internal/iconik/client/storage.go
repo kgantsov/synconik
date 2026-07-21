@@ -42,6 +42,8 @@ func (c *APIClient) Upload(ctx context.Context, storage storage.Storage, filePat
 		StorageID:         file.StorageID,
 		FileSetID:         file.FileSetID,
 		FormatID:          file.FormatID,
+		UploadMethod:      file.UploadMethod,
+		UploadFilename:    file.UploadFilename,
 		UploadURL:         file.UploadURL,
 		UploadCredentials: file.UploadCredentials,
 		ID:                file.ID,
