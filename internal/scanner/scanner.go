@@ -97,6 +97,16 @@ func (s *Scanner) Scan() {
 
 		relativePath := strings.TrimPrefix(path, s.config.Scanner.Dir)
 
+		// Skip hidden files/dirs (e.g. .DS_Store). For a hidden directory skip
+		// its whole subtree; relativePath is empty only for the scan root itself,
+		// which we never want to skip.
+		if relativePath != "" && strings.HasPrefix(info.Name(), ".") {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
 		if info.IsDir() {
 			dirCount++
 
