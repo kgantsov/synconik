@@ -83,26 +83,33 @@ func (c *Config) StoragePrefix() string {
 }
 
 func InitCobraCommand(runFunc func(cmd *cobra.Command, args []string)) *cobra.Command {
-	if cfgFile != "" {
-		// Use config file from the flag
-		viper.SetConfigFile(cfgFile)
-	} else {
-		// Default config file
-		viper.AddConfigPath(".")
-		viper.SetConfigName("config")
-	}
-
-	// Enable environment variable support
-	viper.AutomaticEnv()
-
-	// Read the config file if found
-	if err := viper.ReadInConfig(); err == nil {
-		log.Info().Msgf("Using config file: %s", viper.ConfigFileUsed())
-	}
-
 	var rootCmd = &cobra.Command{
 		Use:   "synconic",
 		Short: "synconic",
+		// PersistentPreRunE runs after cobra has parsed the flags, so cfgFile
+		// (bound to --config) is populated by now. Reading the config here — rather
+		// than during command construction — is what makes --config actually work;
+		// otherwise cfgFile is still empty and viper only ever finds ./config.yaml.
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if cfgFile != "" {
+				// Use config file from the flag
+				viper.SetConfigFile(cfgFile)
+			} else {
+				// Default config file
+				viper.AddConfigPath(".")
+				viper.SetConfigName("config")
+			}
+
+			// Enable environment variable support
+			viper.AutomaticEnv()
+
+			// Read the config file if found
+			if err := viper.ReadInConfig(); err == nil {
+				log.Info().Msgf("Using config file: %s", viper.ConfigFileUsed())
+			}
+
+			return nil
+		},
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			requiredParams := []string{
 				"scanner.dir",

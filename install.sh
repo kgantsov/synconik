@@ -146,9 +146,11 @@ write_config_template() {
 # synconik configuration -- fill in the required values, then start the service.
 iconik:
   url: "https://app.iconik.io"
-  app_id: ""       # REQUIRED
-  token: ""        # REQUIRED
-  storage_id: ""   # REQUIRED
+  app_id: ""             # REQUIRED
+  token: ""              # REQUIRED
+  storage_id: ""         # REQUIRED: cloud storage (GCS/S3/B2) assets upload to
+  local_storage_id: ""   # REQUIRED: local ("FILE" method) storage mirroring scanner.dir
+  # collection_id: ""    # optional: nest everything under an existing collection
 
 store:
   data_dir: "${data_dir}"
@@ -201,7 +203,9 @@ Wants=network-online.target
 [Service]
 Type=simple
 ExecStart=${INSTALL_DIR}/${BIN_NAME} --config ${cfg_file}
-WorkingDirectory=${data_dir}
+# WorkingDirectory is the config dir so ./config.yaml also resolves, making this
+# work even with older binaries where the --config flag isn't honoured.
+WorkingDirectory=${cfg_dir}
 Restart=on-failure
 RestartSec=5
 # route logs into the size-capped namespace configured above
@@ -262,8 +266,10 @@ setup_launchd() {
         <string>--config</string>
         <string>${cfg_file}</string>
     </array>
+    <!-- WorkingDirectory is the config dir so ./config.yaml also resolves, making
+         this work even with older binaries where --config isn't honoured. -->
     <key>WorkingDirectory</key>
-    <string>${data_dir}</string>
+    <string>${cfg_dir}</string>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>

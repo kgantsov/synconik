@@ -69,7 +69,7 @@ sudo journalctl --namespace synconik -u synconik -f    # follow logs
 
 # macOS (launchd)
 sudo launchctl load -w /Library/LaunchDaemons/io.iconik.synconik.plist
-tail -f /usr/local/var/log/synconik/synconik.log
+tail -f /usr/local/var/log/synconik.log
 ```
 
 ### From source
