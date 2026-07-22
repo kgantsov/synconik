@@ -33,6 +33,47 @@ onto the local storage, and removes local files when their file set is deleted i
 
 ## Installation
 
+### Quick install (recommended)
+
+The installer detects your OS/architecture, downloads the matching release binary
+to `/usr/local/bin`, and sets it up as a managed service — a **systemd** service on
+Linux or a **launchd** daemon on macOS — with log rotation capped so it can't fill
+the disk:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kgantsov/synconik/main/install.sh | sh
+```
+
+It writes a config template (`/etc/synconik/config.yaml` on Linux,
+`/usr/local/etc/synconik/config.yaml` on macOS) that you fill in before starting the
+service. Follow the on-screen instructions the script prints when it finishes.
+
+Optional environment overrides:
+
+```bash
+# pin a version, change the install dir, or raise the log cap (MB)
+VERSION=v1.2.3 INSTALL_DIR=/usr/local/bin LOG_MAX_MB=500 \
+  sh -c "$(curl -fsSL https://raw.githubusercontent.com/kgantsov/synconik/main/install.sh)"
+
+# install the binary only, skip the service setup
+NO_SERVICE=1 sh -c "$(curl -fsSL https://raw.githubusercontent.com/kgantsov/synconik/main/install.sh)"
+```
+
+Managing the service:
+
+```bash
+# Linux (systemd)
+sudo systemctl enable --now synconik                   # start at boot + now
+sudo systemctl status synconik
+sudo journalctl --namespace synconik -u synconik -f    # follow logs
+
+# macOS (launchd)
+sudo launchctl load -w /Library/LaunchDaemons/io.iconik.synconik.plist
+tail -f /usr/local/var/log/synconik/synconik.log
+```
+
+### From source
+
 1. Clone the repository:
 ```bash
 git clone https://github.com/kgantsov/synconik.git
