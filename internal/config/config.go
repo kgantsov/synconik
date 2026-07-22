@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -178,6 +179,10 @@ func InitCobraCommand(runFunc func(cmd *cobra.Command, args []string)) *cobra.Co
 }
 
 func (config *Config) ConfigureLogger() {
+	zerolog.CallerMarshalFunc = func(pc uintptr, file string, line int) string {
+		return filepath.Join(filepath.Base(filepath.Dir(file)), filepath.Base(file)) +
+			":" + strconv.Itoa(line)
+	}
 	log.Logger = log.Output(
 		zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339Nano},
 	).With().Caller().Logger()
