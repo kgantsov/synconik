@@ -9,9 +9,6 @@ Beyond one-way uploads, synconik keeps the local folder and Iconik in sync in bo
 directions: it pushes new files up, pulls originals back down when they are requested
 onto the local storage, and removes local files when their file set is deleted in Iconik.
 
-> Note the spelling: the Go module is `github.com/kgantsov/synconik` while the Cobra
-> command is `synconic`.
-
 ## Features
 
 - Periodic file-system scanning that mirrors the directory tree into Iconik

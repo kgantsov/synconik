@@ -99,8 +99,8 @@ func (c *Config) StoragePrefix() string {
 
 func InitCobraCommand(runFunc func(cmd *cobra.Command, args []string)) *cobra.Command {
 	var rootCmd = &cobra.Command{
-		Use:   "synconic",
-		Short: "synconic",
+		Use:   "synconik",
+		Short: "synconik",
 		// PersistentPreRunE runs after cobra has parsed the flags, so cfgFile
 		// (bound to --config) is populated by now. Reading the config here — rather
 		// than during command construction — is what makes --config actually work;
