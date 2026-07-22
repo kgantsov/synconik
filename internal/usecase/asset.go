@@ -112,8 +112,14 @@ func (uc *AssetUseCase) UploadAsset(path string, info os.FileInfo) (*entity.File
 	}
 
 	// If the file is already present on the cloud storage, record a mapping instead
-	// of re-uploading its bytes (and make sure the local mirror file set exists).
-	if mapped, ok := uc.mapExistingCloudFile(ctx, dirPath, info, f); ok {
+	// of re-uploading its bytes (and make sure the local mirror file set exists). A
+	// lookup error aborts here rather than falling through to create a new asset,
+	// which would duplicate the asset on a transient failure.
+	mapped, ok, err := uc.mapExistingCloudFile(ctx, dirPath, info, f)
+	if err != nil {
+		return nil, err
+	}
+	if ok {
 		return mapped, nil
 	}
 
@@ -308,18 +314,20 @@ func (uc *AssetUseCase) cloudDir(dirPath string) string {
 // mapExistingCloudFile checks whether the file already exists on the cloud storage.
 // When it does, it fills f with the discovered Iconik IDs, ensures the asset has a
 // local ("FILE" method) file set so restore/deletion sync keeps working, and returns
-// (f, true) so the caller can persist the mapping without uploading any bytes. A
-// lookup error is logged and treated as "not found" so it never blocks an upload.
+// (f, true, nil) so the caller can persist the mapping without uploading any bytes.
+// A lookup error is returned so the caller aborts: creating a new asset on an
+// ambiguous failure would duplicate an asset that may already exist. A confirmed
+// empty result returns (nil, false, nil) to signal a genuine new upload.
 func (uc *AssetUseCase) mapExistingCloudFile(
 	ctx context.Context, dirPath string, info os.FileInfo, f *entity.File,
-) (*entity.File, bool) {
+) (*entity.File, bool, error) {
 	files, err := uc.client.GetStorageFiles(ctx, uc.storage.ID, uc.cloudDir(dirPath))
 	if err != nil {
 		log.Warn().
 			Err(err).
 			Str("service", "asset_usecase").
 			Msgf("Error checking if file exists on storage: %s", info.Name())
-		return nil, false
+		return nil, false, fmt.Errorf("check existing cloud file %s: %w", info.Name(), err)
 	}
 
 	// Iconik's storage `name` can differ from the on-disk original (it may append
@@ -332,7 +340,7 @@ func (uc *AssetUseCase) mapExistingCloudFile(
 		}
 	}
 	if existing == nil {
-		return nil, false
+		return nil, false, nil
 	}
 
 	log.Info().
@@ -358,11 +366,14 @@ func (uc *AssetUseCase) mapExistingCloudFile(
 		}
 	}
 
-	return f, true
+	return f, true, nil
 }
 
-// hasLocalFileSet reports whether the asset already has a file on the local ("FILE"
-// method) storage. A lookup error is logged and treated as "no local file set".
+// hasLocalFileSet reports whether the asset already has a live file on the local
+// ("FILE" method) storage. Deleting a file set is a soft delete on Iconik's side, so
+// the old file lingers with a DELETED status and must be ignored — otherwise a
+// re-added file would never get its local file set re-registered. A lookup error is
+// logged and treated as "no local file set".
 func (uc *AssetUseCase) hasLocalFileSet(ctx context.Context, assetID string) bool {
 	files, err := uc.client.GetAssetFiles(ctx, assetID, false)
 	if err != nil {
@@ -373,7 +384,16 @@ func (uc *AssetUseCase) hasLocalFileSet(ctx context.Context, assetID string) boo
 		return false
 	}
 	for _, file := range files {
-		if file.StorageID == uc.localStorage.ID {
+		if file.StorageID != uc.localStorage.ID {
+			continue
+		}
+		log.Debug().
+			Str("service", "asset_usecase").
+			Str("asset_id", assetID).
+			Str("file_id", file.ID).
+			Str("status", file.Status).
+			Msg("Found file on local storage")
+		if file.Status != "DELETED" {
 			return true
 		}
 	}

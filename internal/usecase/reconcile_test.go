@@ -58,14 +58,10 @@ func TestReconcileDeletions(t *testing.T) {
 	mockClient.AssertCalled(t, "DeleteFileSet", mock.Anything, "ASSET-GONE", "LOCAL-FS-GONE")
 	mockClient.AssertNotCalled(t, "DeleteFileSet", mock.Anything, "ASSET-PRESENT", "LOCAL-FS-PRESENT")
 
-	// The deleted file keeps its asset + cloud IDs but loses the local ones.
-	gone, err := store.GetFile(gonePath)
-	assert.NoError(t, err)
-	assert.Equal(t, "ASSET-GONE", gone.AssetID)
-	assert.Equal(t, "CLOUD-FS-GONE", gone.FileSetID)
-	assert.Empty(t, gone.LocalFileSetID)
-	assert.Empty(t, gone.LocalFileID)
-	assert.Empty(t, gone.LocalStorageID)
+	// The deleted file's store record is dropped entirely so the next scan treats
+	// it as a cache miss and can re-discover the still-present cloud copy.
+	_, err = store.GetFile(gonePath)
+	assert.Error(t, err)
 
 	// The present file is untouched.
 	present, err := store.GetFile(presentPath)

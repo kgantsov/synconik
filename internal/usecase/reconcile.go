@@ -28,8 +28,10 @@ func NewReconcileUseCase(
 
 // ReconcileDeletions walks the store and, for any FILE whose bytes have
 // disappeared from disk, removes only the local ("FILE" method) file_set + file
-// from Iconik. The asset and its cloud copy are left intact (and the asset/cloud
-// IDs are kept in the store) so the original can be requested back later.
+// from Iconik. The asset and its cloud copy are left intact so the original can be
+// requested back later. The store record is dropped so the next scan treats the
+// path as a cache miss: if the file reappears on disk, UploadAsset re-discovers the
+// still-present cloud copy and re-registers a local file set on the same asset.
 func (uc *ReconcileUseCase) ReconcileDeletions() {
 	entries, err := uc.store.ListFiles()
 	if err != nil {
@@ -73,17 +75,16 @@ func (uc *ReconcileUseCase) ReconcileDeletions() {
 			continue
 		}
 
-		// Keep AssetID + cloud IDs so "request original" can restore it later.
-		f.LocalStorageID = ""
-		f.LocalFileSetID = ""
-		f.LocalFileID = ""
-
-		if err := uc.store.SaveFile(entry.Path, f); err != nil {
+		// Drop the store record entirely. On the next scan the file is a cache miss;
+		// if it reappears on disk, mapExistingCloudFile finds the still-present cloud
+		// copy (by directory_path + name) and re-registers a local file set on the
+		// same asset instead of creating a duplicate.
+		if err := uc.store.DeleteFile(entry.Path); err != nil {
 			log.Error().
 				Err(err).
 				Str("service", "reconcile").
 				Str("path", entry.Path).
-				Msg("Error updating store after local delete")
+				Msg("Error deleting store record after local delete")
 		}
 	}
 }
