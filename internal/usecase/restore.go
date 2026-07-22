@@ -21,17 +21,32 @@ type RestoreUseCase struct {
 	client         icnk_client.Client
 	store          store.Store
 	downloadClient *http.Client
+	// ownership, when non-nil, is applied to each restored file and the directories
+	// created for it, so files written by a root daemon are readable by the desktop
+	// user instead of landing as root-owned 0600.
+	ownership *storage.Ownership
 }
 
 func NewRestoreUseCase(
 	config *config.Config, client icnk_client.Client, store store.Store,
 ) *RestoreUseCase {
+	ownership, err := storage.ResolveOwnership(
+		config.Restore.Owner, config.Restore.Group, config.Restore.FileMode, config.Restore.DirMode,
+	)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("service", "restore").
+			Msg("Invalid restore ownership config; restored files keep default ownership")
+	}
+
 	return &RestoreUseCase{
 		config: config,
 		client: client,
 		store:  store,
 		// Originals can be large, so allow a generous timeout for the download.
 		downloadClient: &http.Client{Timeout: 30 * time.Minute},
+		ownership:      ownership,
 	}
 }
 
@@ -119,6 +134,17 @@ func (uc *RestoreUseCase) handleTransfer(ctx context.Context, t icnk_client.Tran
 
 	if err := storage.Download(uc.downloadClient, downloadURL, destPath); err != nil {
 		return fmt.Errorf("download original: %w", err)
+	}
+
+	// Fix ownership/permissions so a root daemon's download is readable by the
+	// desktop user. Best-effort: the bytes are already on disk, so a chown failure
+	// (e.g. not running as root) must not fail the transfer.
+	if err := uc.ownership.Apply(uc.config.Scanner.Dir, destPath); err != nil {
+		log.Warn().
+			Err(err).
+			Str("service", "restore").
+			Str("dest_path", destPath).
+			Msg("Could not set ownership/permissions on restored file")
 	}
 
 	log.Debug().

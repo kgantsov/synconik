@@ -163,6 +163,16 @@ scanner:
 uploader:
   workers: 5
 
+# Ownership/permissions for files written back to scanner.dir when Iconik transfers
+# an asset TO the local storage. The service runs as root, so without this the
+# downloaded originals land as root-owned 0600 and the desktop user can't open them.
+# owner/group accept a name or numeric id; leave empty to keep the daemon's user.
+restore:
+  owner: ""          # e.g. "youruser" -- user that should own restored files
+  group: ""          # e.g. "staff"
+  file_mode: "0644"
+  dir_mode: "0755"
+
 log:
   level: "info"
 EOF

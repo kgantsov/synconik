@@ -50,12 +50,26 @@ type Store struct {
 	DataDir string `mapstructure:"data_dir"`
 }
 
+// RestoreConfig controls ownership/permissions of files written to scanner.dir by
+// the restore path (Iconik "transfer to local storage"). The daemon commonly runs
+// as root, so without this the downloaded originals land as root-owned 0600 and are
+// unreadable by the desktop user. Owner/Group may be a name or a numeric id; empty
+// leaves that id unchanged. FileMode/DirMode are octal strings (e.g. "0644"); empty
+// falls back to 0644/0755. When all four are empty the fixup is skipped entirely.
+type RestoreConfig struct {
+	Owner    string `mapstructure:"owner"`
+	Group    string `mapstructure:"group"`
+	FileMode string `mapstructure:"file_mode"`
+	DirMode  string `mapstructure:"dir_mode"`
+}
+
 type Config struct {
 	Scanner  ScannerConfig
 	Logging  LoggingConfig
 	Uploader UploaderConfig
 	Iconik   Iconik
 	Store    Store
+	Restore  RestoreConfig
 }
 
 func LoadConfig() (*Config, error) {
@@ -157,6 +171,15 @@ func InitCobraCommand(runFunc func(cmd *cobra.Command, args []string)) *cobra.Co
 
 	rootCmd.Flags().String("store.data_dir", "db", "Data directory")
 
+	rootCmd.Flags().String(
+		"restore.owner", "", "Owner (name or uid) for files restored to scanner.dir (empty: unchanged)",
+	)
+	rootCmd.Flags().String(
+		"restore.group", "", "Group (name or gid) for files restored to scanner.dir (empty: unchanged)",
+	)
+	rootCmd.Flags().String("restore.file_mode", "", "Octal mode for restored files (default 0644)")
+	rootCmd.Flags().String("restore.dir_mode", "", "Octal mode for restored directories (default 0755)")
+
 	// Bind CLI flags to Viper settings
 	viper.BindPFlag("logging.level", rootCmd.Flags().Lookup("logging.level"))
 
@@ -174,6 +197,11 @@ func InitCobraCommand(runFunc func(cmd *cobra.Command, args []string)) *cobra.Co
 	viper.BindPFlag("iconik.collection_id", rootCmd.Flags().Lookup("iconik.collection_id"))
 
 	viper.BindPFlag("store.data_dir", rootCmd.Flags().Lookup("store.data_dir"))
+
+	viper.BindPFlag("restore.owner", rootCmd.Flags().Lookup("restore.owner"))
+	viper.BindPFlag("restore.group", rootCmd.Flags().Lookup("restore.group"))
+	viper.BindPFlag("restore.file_mode", rootCmd.Flags().Lookup("restore.file_mode"))
+	viper.BindPFlag("restore.dir_mode", rootCmd.Flags().Lookup("restore.dir_mode"))
 
 	return rootCmd
 }
