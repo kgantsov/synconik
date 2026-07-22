@@ -202,18 +202,29 @@ func (uc *AssetUseCase) UploadAsset(path string, info os.FileInfo) (*entity.File
 
 	absolutePath := uc.config.Scanner.Dir + path
 
+	// uploadFile carries the upload URL/credentials used for the current attempt. Its
+	// token is single-use on B2: reusing it after a failed attempt is rejected with
+	// `auth_token_limit`. OnRetry fetches a fresh upload URL from Iconik before each
+	// retry so every attempt uploads with a new token.
+	uploadFile := file
 	err = retry.Do(
 		func() error {
-			err = uc.client.Upload(ctx, iconikStorage, absolutePath, file)
-			if err != nil {
-				return err
-			}
-
-			return nil
+			return uc.client.Upload(ctx, iconikStorage, absolutePath, uploadFile)
 		},
 		retry.Attempts(3),
 		retry.Delay(1*time.Second),
 		retry.DelayType(retry.BackOffDelay),
+		retry.OnRetry(func(n uint, err error) {
+			refreshed, rerr := uc.client.GetFile(ctx, asset.ID, file.ID)
+			if rerr != nil {
+				log.Warn().
+					Err(rerr).
+					Str("service", "asset_usecase").
+					Msgf("Error refreshing upload URL before retry: %s", path)
+				return
+			}
+			uploadFile = refreshed
+		}),
 		retry.RetryIf(func(err error) bool {
 			return err != nil
 		}),
@@ -354,48 +365,52 @@ func (uc *AssetUseCase) mapExistingCloudFile(
 	f.StorageID = existing.StorageID
 	f.ID = existing.ID
 
-	// Register the local mirror file set only if the asset does not already have one.
-	if !uc.hasLocalFileSet(ctx, existing.AssetID) {
-		if err := uc.registerLocalFileSet(
-			ctx, existing.AssetID, existing.FormatID, dirPath, info, f,
-		); err != nil {
-			log.Error().
-				Err(err).
-				Str("service", "asset_usecase").
-				Msgf("Error registering local file set for existing asset: %s", info.Name())
-		}
+	// Record the local ("FILE" method) mirror file set. Reuse the asset's existing
+	// one when present so a rebuilt store record still carries the local IDs that
+	// delete reconciliation depends on; otherwise register a new one.
+	if local := uc.findLocalFile(ctx, existing.AssetID); local != nil {
+		f.LocalStorageID = local.StorageID
+		f.LocalFileSetID = local.FileSetID
+		f.LocalFileID = local.ID
+	} else if err := uc.registerLocalFileSet(
+		ctx, existing.AssetID, existing.FormatID, dirPath, info, f,
+	); err != nil {
+		log.Error().
+			Err(err).
+			Str("service", "asset_usecase").
+			Msgf("Error registering local file set for existing asset: %s", info.Name())
 	}
 
 	return f, true, nil
 }
 
-// hasLocalFileSet reports whether the asset already has a live file on the local
-// ("FILE" method) storage. Deleting a file set is a soft delete on Iconik's side, so
+// findLocalFile returns the asset's live file on the local ("FILE" method) storage,
+// or nil if it has none. Deleting a file set is a soft delete on Iconik's side, so
 // the old file lingers with a DELETED status and must be ignored — otherwise a
 // re-added file would never get its local file set re-registered. A lookup error is
-// logged and treated as "no local file set".
-func (uc *AssetUseCase) hasLocalFileSet(ctx context.Context, assetID string) bool {
+// logged and treated as "no local file".
+func (uc *AssetUseCase) findLocalFile(ctx context.Context, assetID string) *icnk_client.File {
 	files, err := uc.client.GetAssetFiles(ctx, assetID, false)
 	if err != nil {
 		log.Warn().
 			Err(err).
 			Str("service", "asset_usecase").
 			Msgf("Error listing files for asset %s", assetID)
-		return false
+		return nil
 	}
-	for _, file := range files {
-		if file.StorageID != uc.localStorage.ID {
+	for i := range files {
+		if files[i].StorageID != uc.localStorage.ID {
 			continue
 		}
 		log.Debug().
 			Str("service", "asset_usecase").
 			Str("asset_id", assetID).
-			Str("file_id", file.ID).
-			Str("status", file.Status).
+			Str("file_id", files[i].ID).
+			Str("status", files[i].Status).
 			Msg("Found file on local storage")
-		if file.Status != "DELETED" {
-			return true
+		if files[i].Status != "DELETED" {
+			return &files[i]
 		}
 	}
-	return false
+	return nil
 }

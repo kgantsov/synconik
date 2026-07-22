@@ -21,6 +21,7 @@ type Client interface {
 	DeleteFileSet(ctx context.Context, asset_id, file_set_id string) error
 
 	CreateFile(ctx context.Context, asset_id string, file *File) (*File, error)
+	GetFile(ctx context.Context, asset_id, file_id string) (*File, error)
 	GetAssetFiles(ctx context.Context, asset_id string, generateSignedURL bool) ([]File, error)
 	TriggerTranscoding(ctx context.Context, asset_id, file_id string) (string, error)
 	CloseFile(ctx context.Context, id, file_id string) error

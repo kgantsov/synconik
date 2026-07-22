@@ -46,6 +46,26 @@ func (c *APIClient) CreateFile(ctx context.Context, asset_id string, file *File)
 	return &newFile, nil
 }
 
+// GetFile retrieves a single file. For a still-open (not yet CLOSED) file, Iconik
+// re-issues fresh `upload_url`/`upload_credentials`, so this is used to obtain a new
+// upload token before retrying an upload — B2 upload tokens are single-use and a
+// reused one is rejected with `auth_token_limit`.
+func (c *APIClient) GetFile(ctx context.Context, asset_id, file_id string) (*File, error) {
+	req, err := c.NewRequest(
+		ctx, "GET", fmt.Sprintf("/API/files/v1/assets/%s/files/%s/", asset_id, file_id), nil,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	var file File
+	if err := c.Do(req, &file); err != nil {
+		return nil, err
+	}
+
+	return &file, nil
+}
+
 func (c *APIClient) TriggerTranscoding(ctx context.Context, asset_id, file_id string) (string, error) {
 	type Body struct {
 		UseStorageTranscodeIgnorePattern bool `json:"use_storage_transcode_ignore_pattern"`

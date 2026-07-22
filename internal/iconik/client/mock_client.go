@@ -78,6 +78,15 @@ func (m *MockClient) CreateFile(ctx context.Context, asset_id string, file *File
 	return args.Get(0).(*File), args.Error(1)
 }
 
+// GetFile mocks the GetFile method
+func (m *MockClient) GetFile(ctx context.Context, asset_id, file_id string) (*File, error) {
+	args := m.Called(ctx, asset_id, file_id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*File), args.Error(1)
+}
+
 // TriggerTranscoding mocks the TriggerTranscoding method
 func (m *MockClient) TriggerTranscoding(ctx context.Context, asset_id, file_id string) (string, error) {
 	args := m.Called(ctx, asset_id, file_id)
