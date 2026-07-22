@@ -223,6 +223,15 @@ func (uc *AssetUseCase) UploadAsset(path string, info os.FileInfo) (*entity.File
 					Msgf("Error refreshing upload URL before retry: %s", path)
 				return
 			}
+			// Don't overwrite a usable URL with an empty one: if Iconik didn't
+			// re-issue an upload URL, keep the previous attempt's file so the retry
+			// fails with a real storage error rather than an empty-URL request.
+			if refreshed.UploadURL == "" {
+				log.Warn().
+					Str("service", "asset_usecase").
+					Msgf("Refreshed file has empty upload URL, keeping previous: %s", path)
+				return
+			}
 			uploadFile = refreshed
 		}),
 		retry.RetryIf(func(err error) bool {
@@ -342,10 +351,14 @@ func (uc *AssetUseCase) mapExistingCloudFile(
 	}
 
 	// Iconik's storage `name` can differ from the on-disk original (it may append
-	// the file id, e.g. "_DSC7627_<id>.jpg"), so match on original_name too.
+	// the file id, e.g. "_DSC7627_<id>.jpg"), so match on original_name too. Only a
+	// CLOSED file has its bytes fully uploaded — a lingering OPEN file is a leftover
+	// from a failed upload (its bytes never landed), so skip it and let a genuine
+	// upload proceed rather than recording a mapping to an empty file.
 	var existing *icnk_client.File
 	for i := range files {
-		if files[i].OriginalName == info.Name() || files[i].Name == info.Name() {
+		nameMatches := files[i].OriginalName == info.Name() || files[i].Name == info.Name()
+		if nameMatches && files[i].Status == "CLOSED" {
 			existing = &files[i]
 			break
 		}

@@ -50,10 +50,19 @@ type uploadIDs struct {
 func mockHappyUpload(
 	c *client.MockClient, cloudDir, localDir, collectionID string, info os.FileInfo, ids uploadIDs,
 ) *icnk_client.File {
-	created := info.ModTime().Format(time.RFC3339)
-
 	c.On("GetStorageFiles", mock.Anything, cloudStorageID, cloudDir).
 		Return([]icnk_client.File{}, nil)
+
+	return mockCreateHandshake(c, cloudDir, localDir, collectionID, info, ids)
+}
+
+// mockCreateHandshake registers the full new-upload handshake (asset/format/file set/
+// file creation, upload, transcoding, local mirror) without the storage dedup check,
+// so callers can control what GetStorageFiles returns.
+func mockCreateHandshake(
+	c *client.MockClient, cloudDir, localDir, collectionID string, info os.FileInfo, ids uploadIDs,
+) *icnk_client.File {
+	created := info.ModTime().Format(time.RFC3339)
 
 	c.On("CreateAsset", mock.Anything, &icnk_client.Asset{
 		Title:        info.Name(),
@@ -163,6 +172,49 @@ func TestUploadAsset(t *testing.T) {
 	c.AssertExpectations(t)
 }
 
+// TestUploadAssetIgnoresOpenCloudFile verifies that a lingering OPEN cloud file (a
+// leftover from a previously failed upload, whose bytes never landed) is not treated
+// as already-existing: the full upload handshake runs instead of recording a mapping.
+func TestUploadAssetIgnoresOpenCloudFile(t *testing.T) {
+	store, _, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	info := makeTestFile(t, "image.jpg")
+
+	cfg := &config.Config{
+		Scanner: config.ScannerConfig{Dir: "/data/originals/", Interval: 10},
+	}
+	storage, localStorage := testStorages()
+	c := client.NewMockClient()
+	uc := NewAssetUseCase(cfg, c, store, storage, localStorage)
+
+	// A same-named file exists on the cloud storage but is still OPEN (upload never
+	// completed), so it must be ignored and a genuine upload must proceed.
+	c.On("GetStorageFiles", mock.Anything, cloudStorageID, "originals/2026/2026-05-23").
+		Return([]icnk_client.File{{
+			ID:           "STALE-OPEN-FILE",
+			OriginalName: info.Name(),
+			AssetID:      "STALE-ASSET",
+			Status:       "OPEN",
+		}}, nil)
+
+	ids := uploadIDs{
+		asset:        "NEW-ASSET",
+		format:       "NEW-FORMAT",
+		cloudFileSet: "NEW-CLOUDFS",
+		cloudFile:    "NEW-CLOUDFILE",
+		localFileSet: "NEW-LOCALFS",
+		localFile:    "NEW-LOCALFILE",
+	}
+	mockCreateHandshake(c, "originals/2026/2026-05-23", "2026/2026-05-23/", "", info, ids)
+
+	file, err := uc.UploadAsset("2026/2026-05-23/"+info.Name(), info)
+	assert.NoError(t, err)
+	assert.Equal(t, ids.cloudFile, file.ID)
+	assert.Equal(t, ids.asset, file.AssetID)
+	c.AssertExpectations(t)
+}
+
 func TestUploadIfNotExists(t *testing.T) {
 	store, _, cleanup := setupTestDB(t)
 	defer cleanup()
@@ -252,6 +304,7 @@ func TestUploadAssetAlreadyExists(t *testing.T) {
 			FormatID:     "EXISTING-FORMAT",
 			FileSetID:    "EXISTING-FILESET",
 			StorageID:    cloudStorageID,
+			Status:       "CLOSED", // only a fully-uploaded (CLOSED) file counts as existing
 		}}, nil)
 
 	// Asset has no local ("FILE") copy yet, so a local mirror file set is created.
