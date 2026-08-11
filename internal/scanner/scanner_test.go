@@ -332,3 +332,21 @@ func TestMatchesIgnore(t *testing.T) {
 	assert.False(t, matchesIgnore(patterns, "photos/a.jpg", "a.jpg"))
 	assert.False(t, matchesIgnore(nil, "photos/a.arw", "a.arw"))
 }
+
+// Matching is case-insensitive: a lowercase pattern like "*.arw" catches the
+// uppercase ".ARW" that cameras (e.g. Sony) write, and a mixed-case pattern
+// matches too.
+func TestMatchesIgnore_CaseInsensitive(t *testing.T) {
+	patterns := []string{"*.arw", "Media Cache"}
+
+	// Lowercase pattern, uppercase file.
+	assert.True(t, matchesIgnore(patterns, "photos/DSC01234.ARW", "DSC01234.ARW"))
+	// Lowercase pattern, mixed-case file.
+	assert.True(t, matchesIgnore(patterns, "photos/DSC01234.ArW", "DSC01234.ArW"))
+	// Mixed-case pattern, lowercase path.
+	assert.True(t, matchesIgnore(patterns, "media cache", "media cache"))
+	// Mixed-case pattern (*.ArW) still catches uppercase files.
+	assert.True(t, matchesIgnore([]string{"*.ArW"}, "photos/a.ARW", "a.ARW"))
+	// Non-matching extension stays non-matching regardless of case.
+	assert.False(t, matchesIgnore(patterns, "photos/a.JPG", "a.JPG"))
+}

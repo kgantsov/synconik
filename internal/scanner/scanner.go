@@ -287,13 +287,18 @@ func (s *Scanner) Scan() {
 // "Ignore Files Patterns" globs. Each pattern (filepath.Match syntax, e.g.
 // "*.arw", "media cache") is tested against both the entry's base name and its
 // path relative to scanner.dir, so a pattern like "cache/*" can target nested
-// entries. Malformed patterns are ignored.
+// entries. Matching is case-insensitive so a pattern like "*.arw" also catches
+// the uppercase ".ARW" that cameras (e.g. Sony) write. Malformed patterns are
+// ignored.
 func matchesIgnore(patterns []string, relativePath, name string) bool {
+	lowerName := strings.ToLower(name)
+	lowerPath := strings.ToLower(relativePath)
 	for _, p := range patterns {
-		if ok, _ := filepath.Match(p, name); ok {
+		lowerPattern := strings.ToLower(p)
+		if ok, _ := filepath.Match(lowerPattern, lowerName); ok {
 			return true
 		}
-		if ok, _ := filepath.Match(p, relativePath); ok {
+		if ok, _ := filepath.Match(lowerPattern, lowerPath); ok {
 			return true
 		}
 	}
