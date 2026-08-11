@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -39,6 +40,16 @@ type Scanner struct {
 	// from Scan(), which never runs concurrently with itself.
 	stability map[string]fileState
 
+	// Scanner behaviour resolved once at startup from the Iconik storage settings
+	// (the local FILE storage whose mount point is scanner.dir). scanEnabled and
+	// readEnabled gate whether we scan at all; scanIgnore holds the "Ignore Files
+	// Patterns" globs; scanIntervalSeconds is the "Scan Interval" (0 = fall back to
+	// the configured interval).
+	scanEnabled         bool
+	readEnabled         bool
+	scanIgnore          []string
+	scanIntervalSeconds int
+
 	wg   *sync.WaitGroup
 	done chan bool
 }
@@ -57,7 +68,7 @@ func NewScanner(
 	}
 	var wg sync.WaitGroup
 
-	return &Scanner{
+	s := &Scanner{
 		config: config,
 		client: client,
 		store:  store,
@@ -69,13 +80,60 @@ func NewScanner(
 
 		stability: make(map[string]fileState),
 
+		// Default to scanning enabled until the storage settings are loaded, so a
+		// transient Iconik error at startup doesn't silently disable the scanner.
+		scanEnabled: true,
+		readEnabled: true,
+
 		wg:   &wg,
 		done: make(chan bool),
-	}, nil
+	}
+
+	s.loadStorageSettings()
+
+	return s, nil
+}
+
+// loadStorageSettings reads the scanner-related flags from the Iconik storage
+// once at startup. These live on the local (FILE method) storage whose mount
+// point is scanner.dir: "Enable scanning" (scan), read access (read), "Ignore
+// Files Patterns" (scan_ignore) and "Scan Interval" (scan_interval_seconds). On
+// error we keep the permissive defaults so the daemon still scans.
+func (s *Scanner) loadStorageSettings() {
+	storage, err := s.client.GetStorage(context.Background(), s.config.Iconik.LocalStorageID)
+	if err != nil {
+		log.Error().
+			Err(err).
+			Str("service", "scanner").
+			Msg("Error reading storage settings, using defaults")
+		return
+	}
+
+	s.scanEnabled = storage.ScanEnabled()
+	s.readEnabled = storage.ReadEnabled()
+	s.scanIgnore = storage.ScanIgnore()
+	s.scanIntervalSeconds = storage.ScanIntervalSeconds()
+
+	log.Info().
+		Str("service", "scanner").
+		Bool("scan", s.scanEnabled).
+		Bool("read", s.readEnabled).
+		Int("scan_interval_seconds", s.scanIntervalSeconds).
+		Strs("scan_ignore", s.scanIgnore).
+		Msg("Loaded scanner settings from storage")
 }
 
 func (s *Scanner) start() {
-	ticker := time.NewTicker(time.Duration(s.config.Scanner.Interval) * time.Second)
+	// Prefer the "Scan Interval" from the storage settings, falling back to the
+	// configured interval when it is unset.
+	interval := time.Duration(s.config.Scanner.Interval) * time.Second
+	if s.scanIntervalSeconds > 0 {
+		interval = time.Duration(s.scanIntervalSeconds) * time.Second
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-ticker.C:
@@ -104,6 +162,17 @@ func (s *Scanner) Stop() {
 }
 
 func (s *Scanner) Scan() {
+	// Honour the storage's "Enable scanning" and read-access flags (resolved once
+	// at startup in loadStorageSettings).
+	if !s.scanEnabled {
+		log.Debug().Str("service", "scanner").Msg("Storage scan flag is off, skipping scan")
+		return
+	}
+	if !s.readEnabled {
+		log.Debug().Str("service", "scanner").Msg("Storage read flag is off, skipping scan")
+		return
+	}
+
 	// Scan the folder
 	fileCount := 0
 	dirCount := 0
@@ -127,6 +196,19 @@ func (s *Scanner) Scan() {
 		// its whole subtree; relativePath is empty only for the scan root itself,
 		// which we never want to skip.
 		if relativePath != "" && strings.HasPrefix(info.Name(), ".") {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		// Skip anything matching the storage's "Ignore Files Patterns". Ignored
+		// directories skip their whole subtree.
+		if relativePath != "" && matchesIgnore(s.scanIgnore, relativePath, info.Name()) {
+			log.Debug().
+				Str("service", "scanner").
+				Str("path", relativePath).
+				Msgf("Ignoring %s (matches scan_ignore)", info.Name())
 			if info.IsDir() {
 				return filepath.SkipDir
 			}
@@ -199,4 +281,21 @@ func (s *Scanner) Scan() {
 	// After discovering new files, reconcile the store against disk to remove the
 	// local file_set for any files that were deleted since the last scan.
 	s.reconcileUseCase.ReconcileDeletions()
+}
+
+// matchesIgnore reports whether a file/dir should be skipped given the storage's
+// "Ignore Files Patterns" globs. Each pattern (filepath.Match syntax, e.g.
+// "*.arw", "media cache") is tested against both the entry's base name and its
+// path relative to scanner.dir, so a pattern like "cache/*" can target nested
+// entries. Malformed patterns are ignored.
+func matchesIgnore(patterns []string, relativePath, name string) bool {
+	for _, p := range patterns {
+		if ok, _ := filepath.Match(p, name); ok {
+			return true
+		}
+		if ok, _ := filepath.Match(p, relativePath); ok {
+			return true
+		}
+	}
+	return false
 }

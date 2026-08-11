@@ -68,6 +68,37 @@ func TestGetStorage(t *testing.T) {
 	}, storage.Settings)
 }
 
+func TestStorageSettingAccessors(t *testing.T) {
+	// Mirrors the shape Iconik returns: JSON numbers decode as float64 and
+	// scan_ignore as []interface{}.
+	s := &Storage{Settings: map[string]interface{}{
+		"read":                  true,
+		"write":                 true,
+		"delete":                false,
+		"scan":                  true,
+		"scan_interval_seconds": float64(5),
+		"scan_ignore":           []interface{}{"*.arw", "media cache", 42, ""},
+	}}
+
+	assert.True(t, s.ReadEnabled())
+	assert.True(t, s.WriteEnabled())
+	assert.False(t, s.DeleteEnabled())
+	assert.True(t, s.ScanEnabled())
+	assert.Equal(t, 5, s.ScanIntervalSeconds())
+	assert.Equal(t, []string{"*.arw", "media cache"}, s.ScanIgnore())
+}
+
+func TestStorageSettingAccessors_Defaults(t *testing.T) {
+	s := &Storage{}
+
+	assert.False(t, s.ReadEnabled())
+	assert.False(t, s.WriteEnabled())
+	assert.False(t, s.DeleteEnabled())
+	assert.False(t, s.ScanEnabled())
+	assert.Equal(t, 0, s.ScanIntervalSeconds())
+	assert.Nil(t, s.ScanIgnore())
+}
+
 func TestUpload(t *testing.T) {
 	cfg := &config.Config{
 		Iconik: config.Iconik{

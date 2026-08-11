@@ -24,6 +24,11 @@ type ScannerConfig struct {
 	// This prevents uploading files that are still being copied (e.g. from an SD
 	// card). A value <= 0 disables the check and enqueues files immediately.
 	StabilityWindow int32 `mapstructure:"stability_window"`
+	// ScanIgnore is a list of glob patterns (filepath.Match syntax, e.g. "*.tmp",
+	// "*.DS_Store", "cache/*"). A file or directory is skipped when a pattern
+	// matches either its base name or its path relative to scanner.dir. Ignored
+	// directories skip their whole subtree.
+	ScanIgnore []string `mapstructure:"scan_ignore"`
 }
 
 type LoggingConfig struct {

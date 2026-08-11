@@ -14,6 +14,14 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+// stubScanStorage makes GetStorage return a storage with scanning and read
+// access enabled so NewScanner's startup settings load is satisfied.
+func stubScanStorage(mockClient *client.MockClient) {
+	mockClient.On("GetStorage", mock.Anything, mock.Anything).Return(
+		&client.Storage{Settings: map[string]interface{}{"scan": true, "read": true}}, nil,
+	)
+}
+
 // newStabilityScanner builds a scanner rooted at a fresh temp dir with the given
 // stability window, returning the scanner, the scan root, its upload queue, and a
 // cleanup func. The mock client accepts collection creation for the root dir.
@@ -43,6 +51,7 @@ func newStabilityScanner(t *testing.T, stabilityWindow int32) (*Scanner, string,
 	mockClient.On("CreateCollection", mock.Anything, mock.Anything).Return(
 		&client.Collection{ID: "5B4BAE0D-5E07-4B36-A2C2-0DF79F558F6F", Title: "testdir"}, nil,
 	)
+	stubScanStorage(mockClient)
 
 	scanner, err := NewScanner(cfg, st, mockClient, uploadQueue)
 	assert.NoError(t, err)
@@ -87,6 +96,7 @@ func setupTestScanner(t *testing.T) (*Scanner, string, func()) {
 		mock.Anything,
 		&client.Collection{ID: "", Title: "testdir", ParentID: "", StorageID: ""},
 	).Return(&client.Collection{ID: "5B4BAE0D-5E07-4B36-A2C2-0DF79F558F6F", Title: "testdir", ParentID: "", StorageID: ""}, nil)
+	stubScanStorage(mockClient)
 
 	scanner, err := NewScanner(cfg, store, mockClient, uploadQueue)
 	assert.NoError(t, err)
@@ -129,6 +139,7 @@ func TestScanner_StartStop(t *testing.T) {
 		mock.Anything,
 		&client.Collection{ID: "", Title: "testdir", ParentID: "", StorageID: ""},
 	).Return(&client.Collection{ID: "5B4BAE0D-5E07-4B36-A2C2-0DF79F558F6F", Title: "testdir", ParentID: "", StorageID: ""}, nil)
+	stubScanStorage(mockClient)
 
 	scanner, err := NewScanner(cfg, store, mockClient, uploadQueue)
 	assert.NoError(t, err)
@@ -245,4 +256,79 @@ func TestScanner_StabilityWindow_Disabled(t *testing.T) {
 	scanner.Scan()
 
 	assert.Len(t, drainQueue(queue), 1, "disabled window should enqueue immediately")
+}
+
+// Files whose base name matches a scan_ignore glob are skipped, while others are
+// still enqueued.
+func TestScanner_ScanIgnore_SkipsMatchingFiles(t *testing.T) {
+	scanner, dir, queue, cleanup := newStabilityScanner(t, 0)
+	defer cleanup()
+
+	scanner.scanIgnore = []string{"*.arw", "*.tmp"}
+
+	mtime := time.Now().Add(-time.Hour)
+	writeFile(t, dir, "photo.arw", "raw", mtime)
+	writeFile(t, dir, "scratch.tmp", "temp", mtime)
+	keepPath, _ := writeFile(t, dir, "movie.mov", "keep", mtime)
+
+	scanner.Scan()
+
+	jobs := drainQueue(queue)
+	assert.Len(t, jobs, 1, "ignored files should not be enqueued")
+	assert.Equal(t, keepPath, jobs[0].Payload.Path)
+}
+
+// A directory matching a scan_ignore pattern is skipped along with its subtree.
+func TestScanner_ScanIgnore_SkipsMatchingDir(t *testing.T) {
+	scanner, dir, queue, cleanup := newStabilityScanner(t, 0)
+	defer cleanup()
+
+	scanner.scanIgnore = []string{"media cache"}
+
+	ignored := filepath.Join(dir, "media cache")
+	assert.NoError(t, os.MkdirAll(ignored, 0755))
+	writeFile(t, ignored, "inside.mov", "nested", time.Now().Add(-time.Hour))
+	keepPath, _ := writeFile(t, dir, "keep.mov", "keep", time.Now().Add(-time.Hour))
+
+	scanner.Scan()
+
+	jobs := drainQueue(queue)
+	assert.Len(t, jobs, 1, "files under an ignored dir should be skipped")
+	assert.Equal(t, keepPath, jobs[0].Payload.Path)
+}
+
+// When the storage's scan flag is off, nothing is enqueued.
+func TestScanner_ScanDisabled_SkipsScan(t *testing.T) {
+	scanner, dir, queue, cleanup := newStabilityScanner(t, 0)
+	defer cleanup()
+
+	scanner.scanEnabled = false
+	writeFile(t, dir, "movie.mov", "whatever", time.Now().Add(-time.Hour))
+
+	scanner.Scan()
+
+	assert.Len(t, drainQueue(queue), 0, "scan-disabled storage should enqueue nothing")
+}
+
+// When the storage's read flag is off, nothing is enqueued.
+func TestScanner_ReadDisabled_SkipsScan(t *testing.T) {
+	scanner, dir, queue, cleanup := newStabilityScanner(t, 0)
+	defer cleanup()
+
+	scanner.readEnabled = false
+	writeFile(t, dir, "movie.mov", "whatever", time.Now().Add(-time.Hour))
+
+	scanner.Scan()
+
+	assert.Len(t, drainQueue(queue), 0, "read-disabled storage should enqueue nothing")
+}
+
+func TestMatchesIgnore(t *testing.T) {
+	patterns := []string{"*.arw", "media cache", "cache/*"}
+
+	assert.True(t, matchesIgnore(patterns, "photos/a.arw", "a.arw"))
+	assert.True(t, matchesIgnore(patterns, "media cache", "media cache"))
+	assert.True(t, matchesIgnore(patterns, "cache/thumb.jpg", "thumb.jpg"))
+	assert.False(t, matchesIgnore(patterns, "photos/a.jpg", "a.jpg"))
+	assert.False(t, matchesIgnore(nil, "photos/a.arw", "a.arw"))
 }

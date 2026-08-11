@@ -19,14 +19,67 @@ type Storage struct {
 	Settings map[string]interface{} `json:"settings"`
 }
 
-// DeleteEnabled reports whether the storage's settings allow the gateway to
-// delete files (the "delete" flag in Iconik's storage settings).
-func (s *Storage) DeleteEnabled() bool {
+// boolSetting reads a boolean flag out of the storage settings map, defaulting
+// to false when the key is missing or not a bool.
+func (s *Storage) boolSetting(key string) bool {
 	if s.Settings == nil {
 		return false
 	}
-	enabled, _ := s.Settings["delete"].(bool)
+	enabled, _ := s.Settings[key].(bool)
 	return enabled
+}
+
+// ReadEnabled reports whether the storage may be read/scanned (the "read" flag).
+func (s *Storage) ReadEnabled() bool { return s.boolSetting("read") }
+
+// WriteEnabled reports whether Iconik may write files back to the storage (the
+// "write" flag), i.e. transfer-to-local / restore.
+func (s *Storage) WriteEnabled() bool { return s.boolSetting("write") }
+
+// DeleteEnabled reports whether the storage's settings allow the gateway to
+// delete files (the "delete" flag in Iconik's storage settings).
+func (s *Storage) DeleteEnabled() bool { return s.boolSetting("delete") }
+
+// ScanEnabled reports whether auto-scanning is turned on for the storage (the
+// "scan" flag).
+func (s *Storage) ScanEnabled() bool { return s.boolSetting("scan") }
+
+// ScanIntervalSeconds is how often the storage should be scanned
+// ("scan_interval_seconds"). It returns 0 when unset so the caller can fall back
+// to its own default.
+func (s *Storage) ScanIntervalSeconds() int {
+	if s.Settings == nil {
+		return 0
+	}
+	switch v := s.Settings["scan_interval_seconds"].(type) {
+	case float64:
+		return int(v)
+	case int:
+		return v
+	case int64:
+		return int(v)
+	}
+	return 0
+}
+
+// ScanIgnore returns the glob patterns whose matches should be skipped during a
+// scan (Iconik's "Ignore Files Patterns" / "scan_ignore"). Non-string or empty
+// entries are dropped.
+func (s *Storage) ScanIgnore() []string {
+	if s.Settings == nil {
+		return nil
+	}
+	raw, ok := s.Settings["scan_ignore"].([]interface{})
+	if !ok {
+		return nil
+	}
+	patterns := make([]string, 0, len(raw))
+	for _, item := range raw {
+		if p, ok := item.(string); ok && p != "" {
+			patterns = append(patterns, p)
+		}
+	}
+	return patterns
 }
 
 func (c *APIClient) GetStorage(ctx context.Context, id string) (*Storage, error) {
