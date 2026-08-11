@@ -46,7 +46,7 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#v}"
           mkdir -p dist
-          go build -o dist/synconik main.go
+          go build -ldflags "-X main.version=${GITHUB_REF_NAME}" -o dist/synconik main.go
           tar -czf "dist/synconik-${version}-${GOOS}-${GOARCH}.tar.gz" -C dist synconik
           rm -f dist/synconik
 

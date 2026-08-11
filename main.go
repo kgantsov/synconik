@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -19,6 +20,49 @@ import (
 	"github.com/kgantsov/synconik/internal/uploader"
 	"github.com/kgantsov/synconik/internal/usecase"
 )
+
+// version is stamped at build time via -ldflags "-X main.version=<tag>".
+// When empty (e.g. a plain `go build`), resolveVersion falls back to the
+// version/VCS info embedded by the Go toolchain.
+var version = ""
+
+// resolveVersion returns the build version, preferring the ldflags-stamped
+// value, then the module version or VCS revision recorded in the build info,
+// and finally "dev".
+func resolveVersion() string {
+	if version != "" {
+		return version
+	}
+
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "dev"
+	}
+
+	if v := info.Main.Version; v != "" && v != "(devel)" {
+		return v
+	}
+
+	var revision, suffix string
+	for _, setting := range info.Settings {
+		switch setting.Key {
+		case "vcs.revision":
+			revision = setting.Value
+		case "vcs.modified":
+			if setting.Value == "true" {
+				suffix = "-dirty"
+			}
+		}
+	}
+	if revision != "" {
+		if len(revision) > 12 {
+			revision = revision[:12]
+		}
+		return revision + suffix
+	}
+
+	return "dev"
+}
 
 func Run(cmd *cobra.Command, args []string) {
 
@@ -159,6 +203,7 @@ func newForgetCommand() *cobra.Command {
 
 func main() {
 	rootCmd := config.InitCobraCommand(Run)
+	rootCmd.Version = resolveVersion()
 	rootCmd.AddCommand(newForgetCommand())
 
 	if err := rootCmd.Execute(); err != nil {
